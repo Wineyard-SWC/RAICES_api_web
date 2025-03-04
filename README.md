@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://github.com/Wineyard-SWC/RAICES/blob/main/RAICESFull.png" alt="Logo de Wineyard">
-  <h3><em>Cultivando Conexiones, Cosechando Innovación.</em></h3>
+  <h3><em>"Tu equipo, tu ritmo, tu éxito."</em></h3>
 </p>
 
 [Mas sobre Wineyard](https://github.com/Wineyard-SWC/Wiki)
