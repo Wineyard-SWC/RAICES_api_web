@@ -3,6 +3,5 @@
 # Third-party imports
 
 # Local application imports
-
-#from .name import router as name_router   <--- Cambiar name por el nombre de la ruta.py
-#from .name import router as name_router
+from .req_routes_ia import router as ia_req_router   
+from .app_routes import router as app_router       # <--- Cambiar name por el nombre de la ruta.py

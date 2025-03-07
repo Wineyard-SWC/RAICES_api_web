@@ -6,7 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 # Local application imports
 
-#from .routes import name_router, name_router     <-- Futuras rutas de la API
+from routes import ia_req_router, app_router     #<-- Futuras rutas de la API
 
 
 def create_app() -> FastAPI:
@@ -28,13 +28,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],  # Permite todos los métodos, especificar si es necesario -> ["GET", "POST", "PUT", "DELETE"]
         allow_headers=["*"],  # Permite todos los headers, especificar si fuere el caso -> ["X-Custom-Header"]
     )
-
-    @app.get("/")
-    def read_root():
-        return {"Hello": "Welcome to RAICES API"}
     
-    #app.include_router(name.router) <-- Cambiar name por el nombre de la ruta.py
-    #app.include_router(name.router)
+    app.include_router(app_router)
+    
+    app.include_router(ia_req_router) 
+    #app.include_router(name.router)<-- Cambiar name por el nombre de la ruta.py
 
     return app
 
