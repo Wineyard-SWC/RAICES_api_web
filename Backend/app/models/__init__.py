@@ -1,0 +1,1 @@
+#La carpeta de models es para crear las 'Clases' que representarian la data que recibimos o enviamos
