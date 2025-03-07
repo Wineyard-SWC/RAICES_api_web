@@ -16,9 +16,10 @@ def create_app() -> FastAPI:
     Returns:
         Una instancia de FastAPI configurada con todas las rutas y configuraciones necesarias.
     """
-    
-    app = FastAPI(title="RAICES API", version="1.0.0")
+    print("Creando la aplicación FastAPI...")
 
+    app = FastAPI(title="RAICES API", version="1.0.0")
+    
     # Configuración del middleware CORS
     app.add_middleware(
         CORSMiddleware,
@@ -28,11 +29,15 @@ def create_app() -> FastAPI:
         allow_headers=["*"],  # Permite todos los headers, especificar si fuere el caso -> ["X-Custom-Header"]
     )
 
+    @app.get("/")
+    def read_root():
+        return {"Hello": "Welcome to RAICES API"}
+    
     #app.include_router(name.router) <-- Cambiar name por el nombre de la ruta.py
     #app.include_router(name.router)
 
     return app
 
-app = FastAPI()
+
 
 

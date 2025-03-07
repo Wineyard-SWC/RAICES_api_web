@@ -9,9 +9,9 @@ Fecha de Creación: 05-03-2025
 # Third-party imports
 # Local application imports
 from app import create_app
-
+app = create_app()
+print("Ejecutando la aplicación con Uvicorn...")
 
 if __name__ == "__main__":
     import uvicorn
-    app = create_app()
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
