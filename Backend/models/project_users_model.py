@@ -4,10 +4,13 @@ from .projects_model import Projects
 from pydantic import BaseModel
 
 # Proyectos con sus respectivos Usuarios 
-class ProjectUsers(BaseModel):
+class Project_Users(BaseModel):
     userRef: Users 
     projectRef: Projects
-    role: str 
 
-class ProjectUsersResponse(ProjectUsers):
+class Project_UsersResponse(Project_Users):
     id: str  
+
+class Project_UsersRef(BaseModel):
+    userRef: str 
+    projectRef: str
