@@ -9,3 +9,5 @@ router = APIRouter()
 @router.get("/")
 def read_root():
     return {"Hello": "Welcome to RAICES API"}
+
+
