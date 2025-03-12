@@ -1,10 +1,11 @@
 from pydantic import BaseModel
 
-# Usuarios
+# Modelo de Usuarios
 class Users(BaseModel):
-    name: str 
-    email: str 
-    role: str 
-    
+    name: str
+    email: str
+    role: str = "user"  # User por defecto
+    picture: str 
+
 class UsersResponse(Users):
-    id: str  
+    id: str
