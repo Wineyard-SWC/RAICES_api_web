@@ -1,11 +1,12 @@
 from pydantic import BaseModel
+from typing import Optional
 
 # Modelo de Usuarios
 class Users(BaseModel):
-    name: str
+    name: Optional[str]
     email: str
     role: str = "user"  # User por defecto
-    picture: str 
+    picture: Optional[str]
 
 class UsersResponse(Users):
     id: str
