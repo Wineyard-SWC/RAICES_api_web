@@ -3,16 +3,8 @@ uvicorn[standard]
 pydantic
 google-genai
 firebase-admin
-
-langchain
-langchain_community
-langchain-google-genai
 python-dotenv
 streamlit
-langchain_experimental
 sentence-transformers
-langchain_chroma
-langchainhub
 pypdf
 rapidocr-onnxruntime
-
