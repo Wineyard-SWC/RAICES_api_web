@@ -22,7 +22,7 @@ def verify_token(authorization: Optional[str] = Header(None)) -> dict:
     
     try:
         print(f"Verificando token: {token}")
-        decoded_token = auth.verify_id_token(token)
+        decoded_token = auth.verify_id_token(token, check_revoked=True, clock_skew_seconds=60)
         print(f"Token verificado: {decoded_token}")
 
         uid = decoded_token.get("uid")
