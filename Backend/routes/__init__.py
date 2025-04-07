@@ -9,5 +9,6 @@ from .users_routes import router as user_router
 from .projects_routes import router as project_router 
 from .project_users_routes import router as project_user_router 
 from .req_routes import router as requirements_router
-# from .epic_routes import router as epic_router 
+from .epic_routes import router as epic_router 
+from .userStorie_routes import router as userStorie_router
 

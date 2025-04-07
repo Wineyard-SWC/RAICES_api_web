@@ -1,13 +1,9 @@
-from .req_models import Requirements
 from pydantic import BaseModel
-from typing import List
 
-# Ëpicas
-class Epic(BaseModel):
-    Desc: str
-    IDEpic: str
-    Name: str
-    RelatedReqs: List[Requirements] = []
+class Epics(BaseModel):
+    idTitle: str
+    title: str
+    description: str
 
-class EpicResponse(Epic):
-    id: str  
+class EpicsResponse(Epics):
+    id: str
