@@ -33,8 +33,9 @@ else:
 
 db = firestore.client()
 
-epics_ref = db.collection("Epics")
-req_ref = db.collection("Requirements")
 users_ref = db.collection("users")
 projects_ref = db.collection("projects")
 project_users_ref = db.collection("project_users")
+req_ref = db.collection("requirements")
+epics_ref = db.collection("epics")
+

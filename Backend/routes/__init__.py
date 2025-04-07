@@ -5,8 +5,9 @@
 # Local application imports
 from .app_routes import router as app_router       # <--- Cambiar name por el nombre de la ruta.py
 
-from .epic_routes import router as epic_router 
 from .users_routes import router as user_router 
 from .projects_routes import router as project_router 
 from .project_users_routes import router as project_user_router 
+from .req_routes import router as requirements_router
+# from .epic_routes import router as epic_router 
 

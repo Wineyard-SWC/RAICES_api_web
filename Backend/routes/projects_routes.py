@@ -1,7 +1,8 @@
-from models.projects_model import Projects, ProjectsResponse
-from firebase import projects_ref, project_users_ref
 from fastapi import APIRouter, HTTPException
 from typing import List
+from firebase import projects_ref, project_users_ref
+from models.projects_model import Projects, ProjectsResponse
+
 
 # Inicializar FastAPI
 router = APIRouter()
