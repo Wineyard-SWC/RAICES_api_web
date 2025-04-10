@@ -8,14 +8,17 @@ router = APIRouter()
 
 @router.post("/projects/{project_id}/epics/batch", response_model=List[EpicResponse])
 def create_epics_batch(project_id: str, epics: List[Epic]):
-    batch = db.batch()  # Usa db directamente para crear el batch
+    # Primer batch para crear épicas
+    epics_batch = db.batch()
     created_epics = []
+    requirements_to_update = []
     
+    # 1. Preparar todas las operaciones de creación de épicas
     for epic in epics:
         if epic.projectRef != project_id:
             raise HTTPException(status_code=400, detail=f"ProjectRef mismatch in epic {epic.idTitle}")
         
-        # Verificar si ya existe
+        # Verificar si la épica ya existe
         existing_query = epics_ref.where("idTitle", "==", epic.idTitle)\
                                 .where("projectRef", "==", project_id)\
                                 .limit(1).stream()
@@ -23,11 +26,48 @@ def create_epics_batch(project_id: str, epics: List[Epic]):
         if list(existing_query):
             raise HTTPException(status_code=400, detail=f"Epic {epic.idTitle} already exists")
         
+        # Crear nueva épica (sin los relatedRequirements)
         new_doc = epics_ref.document()
-        batch.set(new_doc, epic.dict())
-        created_epics.append({"id": new_doc.id, **epic.dict()})
+        epic_dict = epic.dict(exclude={"relatedRequirements"})
+        epics_batch.set(new_doc, epic_dict)
+        
+        # Guardar información para actualizar requerimientos
+        if epic.relatedRequirements:
+            for req in epic.relatedRequirements:
+                requirements_to_update.append({
+                    "epic_id": epic.idTitle,
+                    "req_id": req.idTitle,
+                    "description": req.description
+                })
+        
+        created_epics.append(EpicResponse(id=new_doc.id, **epic_dict))
     
-    batch.commit()
+    # Ejecutar batch de épicas
+    epics_batch.commit()
+    
+    # 2. Actualizar los requerimientos con sus epicRef
+    if requirements_to_update:
+        req_batch = db.batch()
+        
+        for item in requirements_to_update:
+            # Buscar el requerimiento
+            req_query = req_ref.where("idTitle", "==", item["req_id"])\
+                             .where("projectRef", "==", project_id)\
+                             .limit(1).stream()
+            
+            req_list = list(req_query)
+            
+            if req_list:
+                # Si existe, actualizar su epicRef
+                req_doc = req_ref.document(req_list[0].id)
+                req_batch.update(req_doc, {"epicRef": item["epic_id"]})
+            else:
+                # Si no existe, podrías crearlo aquí
+                pass
+        
+        # Ejecutar batch de requerimientos
+        req_batch.commit()
+    
     return created_epics
 
 
