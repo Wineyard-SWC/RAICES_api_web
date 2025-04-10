@@ -1,20 +1,21 @@
 from pydantic import BaseModel
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 class PriorityEnum(str, Enum):
     high = 'High'
     medium = 'Medium'
     low = 'Low'
 
-class UserStories(BaseModel):
-    idTitle: str
+class UserStory(BaseModel):
+    idTitle: str  # Ejemplo: US-001
     title: str
     description: str
     priority: PriorityEnum
     points: int
     acceptanceCriteria: List[str]
-    epicRef: str = None  # ID de la épica a la que pertenece, puede ser opcional
+    epicRef: Optional[str] = None  # idTitle de la épica (ej. EPIC-001)
+    projectRef: str  # ID del proyecto
 
-class UserStoriesResponse(UserStories):
-    id: str
+class UserStoryResponse(UserStory):
+    id: str  # ID de Firestore (se mantiene por compatibilidad)
