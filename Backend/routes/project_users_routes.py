@@ -5,63 +5,52 @@ from firebase import project_users_ref, users_ref, projects_ref
 from fastapi import APIRouter, HTTPException
 from typing import List
 
-# Inicializar FastAPI
 router = APIRouter()
 
-# Obtener todas las relaciones usuario-proyecto
 @router.get("/project_users", response_model=List[Project_UsersResponse])
 def get_all_project_users():
     project_users = project_users_ref.stream()
-    # Modificar para obtener los datos completos de usuario y proyecto
     return [
         Project_UsersResponse(
             id=pu.id,
             userRef=users_ref.document(pu.to_dict()["userRef"].id).get().to_dict(),
-            projectRef=projects_ref.document(pu.to_dict()["projectRef"].id).get().to_dict()
-        ) 
+            projectRef=projects_ref.document(pu.to_dict()["projectRef"].id).get().to_dict(),
+            joinedAt=pu.to_dict().get("joinedAt"),
+            role=pu.to_dict().get("role")
+        )
         for pu in project_users
     ]
 
-# Obtener todos los proyectos de un usuario específico
 @router.get("/project_users/user/{user_id}", response_model=List[ProjectsResponse])
 def get_projects_by_user(user_id: str):
     user_doc = users_ref.document(user_id).get()
     if not user_doc.exists:
         raise HTTPException(status_code=404, detail="User not found")
-
     project_users = project_users_ref.where("userRef", "==", user_doc.reference).stream()
-    
     projects = [
-        projects_ref.document(pu.to_dict()["projectRef"].id).get()  # Obtener documento de Firestore
+        projects_ref.document(pu.to_dict()["projectRef"].id).get()
         for pu in project_users
     ]
-
-    # Usar el ID de Firestore directamente
     return [
-        {"id": proj.id, **proj.to_dict()}  # Usar el ID de Firestore del proyecto
+        {"id": proj.id, **proj.to_dict()}
         for proj in projects if proj.exists
     ]
 
-
-# Obtener todos los usuarios de un proyecto específico
 @router.get("/project_users/project/{project_id}", response_model=List[UsersResponse])
 def get_users_by_project(project_id: str):
     project_doc = projects_ref.document(project_id).get()
     if not project_doc.exists:
         raise HTTPException(status_code=404, detail="Project not found")
-
     project_users = project_users_ref.where("projectRef", "==", project_doc.reference).stream()
     users = [
-        users_ref.document(pu.to_dict()["userRef"].id).get().to_dict() 
+        users_ref.document(pu.to_dict()["userRef"].id).get().to_dict()
         for pu in project_users
     ]
+    return [{"id": str(idx), **user} for idx, user in enumerate(users) if user]
 
-    return [{"id": str(user_id), **user} for user_id, user in enumerate(users) if user]
-
-# Crear una relación usuario-proyecto
 @router.post("/project_users", response_model=Project_UsersResponse)
 def create_project_user_relation(project_user: Project_UsersRef):
-    # Usamos los IDs directamente para obtener los documentos de usuario y proyecto
+    # Get the user and project documents using their IDs or references:
     user_doc = users_ref.document(project_user.userRef).get()
     project_doc = projects_ref.document(project_user.projectRef).get()
 
@@ -70,35 +59,70 @@ def create_project_user_relation(project_user: Project_UsersRef):
     if not project_doc.exists:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Crear la relación en la colección project_users usando las referencias
+    # Create the relation in Firestore
     project_user_doc = project_users_ref.document()
-    project_user_doc.set({
-        "userRef": users_ref.document(project_user.userRef),  # Pasamos la referencia directamente
-        "projectRef": projects_ref.document(project_user.projectRef)  # Igual para el proyecto
+    project_users_ref.document(project_user_doc.id).set({
+        "userRef": users_ref.document(project_user.userRef),
+        "projectRef": projects_ref.document(project_user.projectRef),
+        "role": project_user.role,
+        "joinedAt": project_user.joinedAt
     })
 
-    # Crear instancias de los modelos Users y Projects
-    user_instance = Users(**user_doc.to_dict())  # Crear la instancia de User
-    project_instance = Projects(**project_doc.to_dict())  # Crear la instancia de Project
-
-    # Devolver la respuesta con el ID generado por Firestore para la relación
+    # Instead of returning the entire document's data, return just the IDs
     return Project_UsersResponse(
-        id=project_user_doc.id,  # El ID del documento creado en Firestore
-        userRef=user_instance,  # Instancia del usuario
-        projectRef=project_instance  # Instancia del proyecto
+        id=project_user_doc.id,
+        userRef=user_doc.id,
+        projectRef=project_doc.id,
+        role=project_user.role,
+        joinedAt=project_user.joinedAt
     )
 
 
-# Eliminar una relación usuario-proyecto
 @router.delete("/project_users/{project_user_id}")
 def delete_project_user_relation(project_user_id: str):
     project_user_doc = project_users_ref.document(project_user_id).get()
-
     if not project_user_doc.exists:
         raise HTTPException(status_code=404, detail="Project-user relation not found")
-
-    # Eliminar el documento de la relación usando la referencia
     project_users_ref.document(project_user_id).delete()
-
     return {"message": "Project-user relation deleted successfully"}
 
+@router.get("/project_users/relation", response_model=Project_UsersResponse)
+def get_project_user_relation(user_id: str, project_id: str):
+    """
+    Retorna la relación (Project_Users) entre un user_id y un project_id específicos,
+    incluyendo 'role', 'joinedAt', etc.
+    """
+    # 1. Verificar que el user exista
+    user_doc = users_ref.document(user_id).get()
+    if not user_doc.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 2. Verificar que el proyecto exista
+    project_doc = projects_ref.document(project_id).get()
+    if not project_doc.exists:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # 3. Buscar la relación en project_users que cumpla con ambos
+    query = (
+        project_users_ref
+        .where("userRef", "==", user_doc.reference)
+        .where("projectRef", "==", project_doc.reference)
+        .limit(1)  # Solo esperamos 1 doc
+        .stream()
+    )
+    docs = list(query)
+
+    if not docs:
+        raise HTTPException(status_code=404, detail="No project-user relation found")
+
+    # 4. Retornar la relación
+    doc = docs[0]
+    data = doc.to_dict()
+
+    return Project_UsersResponse(
+        id=doc.id,
+        userRef=data["userRef"].id,
+        projectRef=data["projectRef"].id,
+        role=data.get("role"),
+        joinedAt=data.get("joinedAt"),
+    )
