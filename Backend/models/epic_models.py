@@ -1,9 +1,10 @@
 from pydantic import BaseModel
 
-class Epics(BaseModel):
-    idTitle: str
+class Epic(BaseModel):
+    idTitle: str  # EPIC-001
     title: str
     description: str
+    projectRef: str  # ID del proyecto
 
-class EpicsResponse(Epics):
-    id: str
+class EpicResponse(Epic):
+    id: str  # ID de Firestore (se mantiene por compatibilidad)
