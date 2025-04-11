@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(requirements_router) 
     app.include_router(epic_router) 
     app.include_router(userStorie_router) 
-    app.include_router(users_search_router) 
+    app.include_router(users_search_router, prefix="/users")
 
     #app.include_router(name.router)<-- Cambiar name por el nombre de la ruta.py
 

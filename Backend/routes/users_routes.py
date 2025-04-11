@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 from firebase import users_ref, project_users_ref
 from models.users_model import Users, UsersResponse
+from fastapi import Query
 
 
 # Inicializar FastAPI
@@ -56,3 +57,4 @@ def delete_user(uid: str):
     # Eliminar usuario
     user_doc.delete()
     return {"message": "User deleted successfully"}
+
