@@ -1,7 +1,7 @@
 from firebase import db
 from fastapi import APIRouter, HTTPException
 from typing import List
-from firebase import req_ref, epics_ref
+from firebase import req_ref, epics_ref, projects_ref
 from models.req_models import Requirement, RequirementResponse
 from typing import Optional
 
@@ -13,6 +13,14 @@ def create_requirements_batch(
     requirements: List[Requirement],
     epic_id: Optional[str] = None  # Opcional: si se quiere asignar todos a la misma épica
 ):
+    project_ref = projects_ref.document(project_id)
+    project = project_ref.get()
+    
+    if not project.exists:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project with ID {project_id} not found"
+        )
     
     batch = db.batch()  
     created_reqs = []

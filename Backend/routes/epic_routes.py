@@ -1,13 +1,22 @@
 from firebase import db
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
-from firebase import epics_ref, req_ref
+from firebase import epics_ref, req_ref, projects_ref
 from models.epic_models import Epic, EpicResponse
 
 router = APIRouter()
 
 @router.post("/projects/{project_id}/epics/batch", response_model=List[EpicResponse])
 def create_epics_batch(project_id: str, epics: List[Epic]):
+    project_ref = projects_ref.document(project_id)
+    project = project_ref.get()
+    
+    if not project.exists:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project with ID {project_id} not found"
+        )
+
     # Primer batch para crear épicas
     epics_batch = db.batch()
     created_epics = []
@@ -24,7 +33,7 @@ def create_epics_batch(project_id: str, epics: List[Epic]):
                                 .limit(1).stream()
         
         if list(existing_query):
-            raise HTTPException(status_code=400, detail=f"Epic {epic.idTitle} already exists")
+            continue
         
         # Crear nueva épica (sin los relatedRequirements)
         new_doc = epics_ref.document()
