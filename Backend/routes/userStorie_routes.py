@@ -2,6 +2,7 @@ from firebase import db
 from fastapi import APIRouter, HTTPException
 from typing import List
 from firebase import userstories_ref, epics_ref, projects_ref
+from firebase_admin import firestore
 from models.userStorie_model import UserStory, UserStoryResponse
 from typing import Optional
 
@@ -11,7 +12,8 @@ router = APIRouter()
 def create_userstories_batch(
     project_id: str,
     userstories: List[UserStory],
-    epic_id: Optional[str] = None  # Opcional: asignar todos a la misma épica
+    epic_id: Optional[str] = None,  # Opcional: asignar todos a la misma épica
+    archive_missing: bool = True    # Opcional: archivar historias no incluidas
 ):
     project_ref = projects_ref.document(project_id)
     project = project_ref.get()
@@ -22,9 +24,6 @@ def create_userstories_batch(
             detail=f"Project with ID {project_id} not found"
         )
 
-    batch = db.batch()  
-    created_stories = []
-    
     # Verificar épica si se especificó
     if epic_id:
         epic_query = epics_ref.where("idTitle", "==", epic_id)\
@@ -32,7 +31,19 @@ def create_userstories_batch(
                             .limit(1).stream()
         if not list(epic_query):
             raise HTTPException(status_code=404, detail="Epic not found")
-
+    
+    # Obtener historias de usuario existentes para este proyecto
+    existing_stories = {
+        doc.to_dict()["idTitle"]: doc.reference 
+        for doc in userstories_ref.where("projectRef", "==", project_id).stream()
+    }
+    
+    # Seguimiento de las historias que estamos actualizando
+    updated_story_ids = set()
+    batch = db.batch()
+    created_stories = []
+    
+    # Actualizar o crear historias de usuario
     for story in userstories:
         if story.projectRef != project_id:
             raise HTTPException(status_code=400, detail=f"ProjectRef mismatch in user story {story.idTitle}")
@@ -41,33 +52,54 @@ def create_userstories_batch(
         if epic_id:
             story.epicRef = epic_id
         
-        # Verificar si ya existe
-        existing_query = userstories_ref.where("idTitle", "==", story.idTitle)\
-                                      .where("projectRef", "==", project_id)\
-                                      .limit(1).stream()
+        # Preparar datos con status y timestamp
+        story_dict = story.dict() if hasattr(story, 'dict') else story.model_dump(exclude_unset=True, exclude_none=True)
+        story_dict["status"] = "active"  # Marcar como activa
+        story_dict["lastUpdated"] = firestore.SERVER_TIMESTAMP
         
-        existing = list(existing_query)
-        
-        if existing:
+        # Actualizar o crear
+        if story.idTitle in existing_stories:
             # Actualizar existente
-            story_doc = userstories_ref.document(existing[0].id)
-            batch.update(story_doc, story.dict())
-            created_stories.append({"id": story_doc.id, **story.dict()})
+            story_ref_doc = existing_stories[story.idTitle]
+            batch.update(story_ref_doc, story_dict)
+            created_stories.append(UserStoryResponse(id=story_ref_doc.id, **story_dict))
         else:
-            # Crear nuevo
+            # Crear nueva
             new_doc = userstories_ref.document()
-            batch.set(new_doc, story.dict())
-            created_stories.append({"id": new_doc.id, **story.dict()})
+            batch.set(new_doc, story_dict)
+            created_stories.append(UserStoryResponse(id=new_doc.id, **story_dict))
+        
+        # Marcar esta historia como actualizada
+        updated_story_ids.add(story.idTitle)
     
+    if archive_missing:
+        for story_id, story_ref_doc in existing_stories.items():
+            if story_id not in updated_story_ids:
+                batch.update(story_ref_doc, {
+                    "status": "archived",
+                    "lastUpdated": firestore.SERVER_TIMESTAMP
+                })
+    
+    # Confirmar todos los cambios
     batch.commit()
+    
     return created_stories
 
 
 # Obtener todas las user stories de un proyecto
 @router.get("/projects/{project_id}/userstories", response_model=List[UserStoryResponse])
-def get_project_userstories(project_id: str):
-    userstories = userstories_ref.where("projectRef", "==", project_id).stream()
+def get_project_userstories(
+    project_id: str,
+    include_archived: bool = False  
+):
+    query = userstories_ref.where("projectRef", "==", project_id)
+    
+    if not include_archived:
+        query = query.where("status", "==", "active")
+    
+    userstories = query.stream()
     return [UserStoryResponse(id=story.id, **story.to_dict()) for story in userstories]
+
 
 
 # Obtener una user story específica

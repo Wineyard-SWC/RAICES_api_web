@@ -8,8 +8,10 @@ class PriorityEnum(str, Enum):
     low = 'Low'
 
 class UserStory(BaseModel):
+    uuid: str 
     idTitle: str  # Ejemplo: US-001
     title: str
+    comments: Optional[List[str]]
     description: str
     priority: PriorityEnum
     points: int

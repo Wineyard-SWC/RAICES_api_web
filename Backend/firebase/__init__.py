@@ -1,8 +1,11 @@
 # firebase_config.py
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 import os
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
+
+from dotenv import load_dotenv
+print("load_dotenv imported correctly")
 
 load_dotenv()
 # Obtener las credenciales de Firebase desde el entorno
@@ -10,7 +13,7 @@ cred_dict= {
     "type": os.getenv("TYPE"),
     "project_id": os.getenv("PROJECT_ID"),
     "private_key_id": os.getenv("PRIVATE_KEY_ID"),
-    "private_key": os.getenv("PRIVATE_KEY").replace("\\n", "\n"),  # 🔥 Importante
+    "private_key": os.getenv("PRIVATE_KEY").replace("\\n", "\n"),  
     "client_email": os.getenv("CLIENT_EMAIL"),
     "client_id": os.getenv("CLIENT_ID"),
     "auth_uri": os.getenv("AUTH_URI"),
