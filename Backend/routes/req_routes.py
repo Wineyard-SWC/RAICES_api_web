@@ -2,6 +2,7 @@ from firebase import db
 from fastapi import APIRouter, HTTPException
 from typing import List
 from firebase import req_ref, epics_ref, projects_ref
+from firebase_admin import firestore
 from models.req_models import Requirement, RequirementResponse
 from typing import Optional
 
@@ -11,7 +12,8 @@ router = APIRouter()
 def create_requirements_batch(
     project_id: str,
     requirements: List[Requirement],
-    epic_id: Optional[str] = None  # Opcional: si se quiere asignar todos a la misma épica
+    epic_id: Optional[str] = None,
+    archive_missing: bool = True
 ):
     project_ref = projects_ref.document(project_id)
     project = project_ref.get()
@@ -22,53 +24,72 @@ def create_requirements_batch(
             detail=f"Project with ID {project_id} not found"
         )
     
-    batch = db.batch()  
-    created_reqs = []
-    
-    # Verificar épica si se especificó
+    # Validar si epic_id se especificó
     if epic_id:
         epic_query = epics_ref.where("idTitle", "==", epic_id)\
-                             .where("projectRef", "==", project_id)\
-                             .limit(1).stream()
+                              .where("projectRef", "==", project_id)\
+                              .limit(1).stream()
         if not list(epic_query):
             raise HTTPException(status_code=404, detail="Epic not found")
+    
+    # Obtener requerimientos existentes
+    existing_reqs = {
+        doc.to_dict()["idTitle"]: doc.reference
+        for doc in req_ref.where("projectRef", "==", project_id).stream()
+    }
+
+    updated_req_ids = set()
+    batch = db.batch()
+    created_reqs = []
 
     for req in requirements:
         if req.projectRef != project_id:
             raise HTTPException(status_code=400, detail=f"ProjectRef mismatch in requirement {req.idTitle}")
         
-        # Si se especificó epic_id, sobreescribimos la referencia
-        if epic_id:
+        # Solo asignar epic_id si no hay uno definido
+        if epic_id and not req.epicRef:
             req.epicRef = epic_id
-        
-        # Verificar si ya existe
-        existing_query = req_ref.where("idTitle", "==", req.idTitle)\
-                              .where("projectRef", "==", project_id)\
-                              .limit(1).stream()
-        
-        existing = list(existing_query)
-        
-        if existing:
-            # Actualizar existente
-            req_doc = req_ref.document(existing[0].id)
-            batch.update(req_doc, req.dict())
-            created_reqs.append({"id": req_doc.id, **req.dict()})
+
+        # Preparar objeto a guardar
+        req_dict = req.model_dump(exclude_unset=True, exclude_none=True)
+        req_dict["status"] = "active"
+        req_dict["lastUpdated"] = firestore.SERVER_TIMESTAMP
+
+        if req.idTitle in existing_reqs:
+            ref = existing_reqs[req.idTitle]
+            batch.update(ref, req_dict)
+            created_reqs.append(RequirementResponse(id=ref.id, **req_dict))
         else:
-            # Crear nuevo
             new_doc = req_ref.document()
-            batch.set(new_doc, req.dict())
-            created_reqs.append({"id": new_doc.id, **req.dict()})
-    
+            batch.set(new_doc, req_dict)
+            created_reqs.append(RequirementResponse(id=new_doc.id, **req_dict))
+
+        updated_req_ids.add(req.idTitle)
+
+    # Archivar los requerimientos que ya no están
+    if archive_missing:
+        for req_id, ref in existing_reqs.items():
+            if req_id not in updated_req_ids:
+                batch.update(ref, {
+                    "status": "archived",
+                    "lastUpdated": firestore.SERVER_TIMESTAMP
+                })
+
     batch.commit()
     return created_reqs
 
-
-# Obtener todos los requerimientos de un proyecto
 @router.get("/projects/{project_id}/requirements", response_model=List[RequirementResponse])
-def get_project_requirements(project_id: str):
-    requirements = req_ref.where("projectRef", "==", project_id).stream()
+def get_project_requirements(
+    project_id: str,
+    include_archived: bool = False  
+):
+    query = req_ref.where("projectRef", "==", project_id)
+    
+    if not include_archived:
+        query = query.where("status", "==", "active")
+    
+    requirements = query.stream()
     return [RequirementResponse(id=req.id, **req.to_dict()) for req in requirements]
-
 
 # Obtener un requerimiento específico
 @router.get("/projects/{project_id}/requirements/{requirement_id}", response_model=RequirementResponse)

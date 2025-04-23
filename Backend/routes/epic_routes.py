@@ -2,12 +2,13 @@ from firebase import db
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 from firebase import epics_ref, req_ref, projects_ref
+from firebase_admin import firestore
 from models.epic_models import Epic, EpicResponse
 
 router = APIRouter()
 
 @router.post("/projects/{project_id}/epics/batch", response_model=List[EpicResponse])
-def create_epics_batch(project_id: str, epics: List[Epic]):
+def create_epics_batch(project_id: str, epics: List[Epic], archive_missing: bool = True):
     project_ref = projects_ref.document(project_id)
     project = project_ref.get()
     
@@ -16,65 +17,70 @@ def create_epics_batch(project_id: str, epics: List[Epic]):
             status_code=404,
             detail=f"Project with ID {project_id} not found"
         )
-
-    # Primer batch para crear épicas
-    epics_batch = db.batch()
+    
+    # Get existing epics for this project
+    existing_epics = {doc.to_dict()["idTitle"]: doc.reference 
+                     for doc in epics_ref.where("projectRef", "==", project_id).stream()}
+    
+    # Track which epics we're updating
+    updated_epic_ids = set()
+    batch = db.batch()
     created_epics = []
     requirements_to_update = []
     
-    # 1. Preparar todas las operaciones de creación de épicas
     for epic in epics:
         if epic.projectRef != project_id:
             raise HTTPException(status_code=400, detail=f"ProjectRef mismatch in epic {epic.idTitle}")
         
-        # Verificar si la épica ya existe
-        existing_query = epics_ref.where("idTitle", "==", epic.idTitle)\
-                                .where("projectRef", "==", project_id)\
-                                .limit(1).stream()
+        epic_dict = epic.model_dump(exclude_unset=True, exclude_none=True)
+        epic_dict["status"] = "active"  
+        epic_dict["lastUpdated"] = firestore.SERVER_TIMESTAMP
         
-        if list(existing_query):
-            continue
+        if epic.idTitle in existing_epics:
+            # Update existing
+            epic_ref = existing_epics[epic.idTitle]
+            batch.update(epic_ref, epic_dict)
+            created_epics.append(EpicResponse(id=epic_ref.id, **epic_dict))
+        else:
+            new_doc = epics_ref.document()
+            batch.set(new_doc, epic_dict)
+            created_epics.append(EpicResponse(id=new_doc.id, **epic_dict))
         
-        # Crear nueva épica (sin los relatedRequirements)
-        new_doc = epics_ref.document()
-        epic_dict = epic.dict(exclude={"relatedRequirements"})
-        epics_batch.set(new_doc, epic_dict)
+        updated_epic_ids.add(epic.idTitle)
         
-        # Guardar información para actualizar requerimientos
+        # Handle requirements
         if epic.relatedRequirements:
             for req in epic.relatedRequirements:
                 requirements_to_update.append({
                     "epic_id": epic.idTitle,
                     "req_id": req.idTitle,
-                    "description": req.description
+                    "description": req.description,
+                    "uuid": req.uuid
                 })
-        
-        created_epics.append(EpicResponse(id=new_doc.id, **epic_dict))
     
-    # Ejecutar batch de épicas
-    epics_batch.commit()
+    if archive_missing:
+        for epic_id, epic_ref in existing_epics.items():
+            if epic_id not in updated_epic_ids:
+                batch.update(epic_ref, {
+                    "status": "archived",
+                    "lastUpdated": firestore.SERVER_TIMESTAMP
+                })
     
-    # 2. Actualizar los requerimientos con sus epicRef
+    # Commit all changes
+    batch.commit()
+    
+    # Update requirements
     if requirements_to_update:
         req_batch = db.batch()
-        
         for item in requirements_to_update:
-            # Buscar el requerimiento
             req_query = req_ref.where("idTitle", "==", item["req_id"])\
-                             .where("projectRef", "==", project_id)\
-                             .limit(1).stream()
-            
+                               .where("projectRef", "==", project_id)\
+                               .limit(1).stream()
             req_list = list(req_query)
             
             if req_list:
-                # Si existe, actualizar su epicRef
                 req_doc = req_ref.document(req_list[0].id)
                 req_batch.update(req_doc, {"epicRef": item["epic_id"]})
-            else:
-                # Si no existe, podrías crearlo aquí
-                pass
-        
-        # Ejecutar batch de requerimientos
         req_batch.commit()
     
     return created_epics
@@ -82,8 +88,17 @@ def create_epics_batch(project_id: str, epics: List[Epic]):
 
 # Obtener todas las épicas de un proyecto
 @router.get("/projects/{project_id}/epics", response_model=List[EpicResponse])
-def get_project_epics(project_id: str):
-    epics = epics_ref.where("projectRef", "==", project_id).stream()
+def get_project_epics(
+    project_id: str,
+    include_archived: bool = False  # Parámetro opcional para incluir archivados
+):
+    query = epics_ref.where("projectRef", "==", project_id)
+    
+    # Si no se solicitan archivados, filtrar por status=active
+    if not include_archived:
+        query = query.where("status", "==", "active")
+    
+    epics = query.stream()
     return [EpicResponse(id=epic.id, **epic.to_dict()) for epic in epics]
 
 

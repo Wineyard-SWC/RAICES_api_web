@@ -14,6 +14,7 @@ class Requirement(BaseModel):
     priority: PriorityEnum
     projectRef: str  # ID del proyecto
     epicRef: Optional[str] = None  # EPIC-001 (referencia al idTitle de la épica)
+    uuid:str
 
 class RequirementResponse(Requirement):
     id: str  # ID de Firestore (se mantiene por compatibilidad)
