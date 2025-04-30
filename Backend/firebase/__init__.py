@@ -42,4 +42,5 @@ project_users_ref = db.collection("project_users")
 req_ref = db.collection("requirements")
 epics_ref = db.collection("epics")
 userstories_ref = db.collection("userStories")
-
+tasks_ref = db.collection("tasks")
+sprints_ref      = db.collection("sprints")
