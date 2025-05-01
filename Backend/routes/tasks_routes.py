@@ -7,7 +7,6 @@ from datetime import datetime
 
 router = APIRouter()
 
-
 @router.post(
     "/projects/{project_id}/tasks/batch",
     response_model=List[TaskResponse]
@@ -52,7 +51,9 @@ def batch_upsert_tasks(
             "project_id": project_id,
             "created_at": now,
             "updated_at": now,
-            "comments": []
+            "comments": [],
+            # <-- aquí inyectas el título de la historia
+            "user_story_title": story_doc.to_dict().get("title"),
         })
 
         # 5. Crear la nueva tarea
@@ -63,11 +64,13 @@ def batch_upsert_tasks(
         # 6. Construir la respuesta sin duplicar 'comments'
         response_kwargs = data.copy()
         comments = response_kwargs.pop("comments", [])
+        # Quita también la clave que inyectaste en `data`
+        story_title = response_kwargs.pop("user_story_title", None)
 
         output.append(
             TaskResponse(
                 id=new_ref.id,
-                user_story_title=story_doc.to_dict().get("title"),
+                user_story_title=story_title,
                 assignee_id=None,
                 sprint_name=None,
                 comments=comments,
@@ -93,21 +96,36 @@ def batch_upsert_tasks(
     response_model=List[TaskResponse]
 )
 def get_project_tasks(project_id: str):
+    # 1) Validar que el proyecto exista
     if not projects_ref.document(project_id).get().exists:
         raise HTTPException(404, "Project not found")
 
+    # 2) Recuperar los documentos de Firestore
     docs = tasks_ref.where("project_id", "==", project_id).stream()
-    return [
-        TaskResponse(
-            id=d.id,
-            user_story_title=d.get("user_story_title"),
-            assignee_id=d.get("assignee_id"),
-            sprint_name=d.get("sprint_name"),
-            comments=d.get("comments", []),
-            **d.to_dict()  # type: ignore
+    output: List[TaskResponse] = []
+
+    for d in docs:
+        raw = d.to_dict() or {}
+
+        # 3) Extraemos y eliminamos del dict los campos “especiales”
+        comments          = raw.pop("comments", [])
+        user_story_title  = raw.pop("user_story_title", None)
+        assignee_id       = raw.pop("assignee_id", None)
+        sprint_name       = raw.pop("sprint_name", None)
+
+        # 4) Construimos la respuesta, pasando cada campo solo UNA vez
+        output.append(
+            TaskResponse(
+                id=d.id,
+                user_story_title=user_story_title,
+                assignee_id=assignee_id,
+                sprint_name=sprint_name,
+                comments=comments,
+                **raw
+            )
         )
-        for d in docs
-    ]
+
+    return output
 
 
 # 3) Obtener una task por su ID

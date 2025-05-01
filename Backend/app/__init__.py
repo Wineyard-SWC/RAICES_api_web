@@ -6,9 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 # Local application imports
 
-from routes import app_router, user_router, project_router, project_user_router, requirements_router, epic_router, userStorie_router, users_search_router, tasks_router# , email_router  #<-- Futuras rutas de la API
-
-
+from routes import app_router, user_router, project_router, project_user_router, requirements_router, epic_router, userStorie_router, users_search_router, tasks_router, sprints_router # , email_router  #<-- Futuras rutas de la API
 
 def create_app() -> FastAPI:
     """
@@ -40,6 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(userStorie_router) 
     app.include_router(users_search_router, prefix="/users")
     app.include_router(tasks_router)
+    app.include_router(sprints_router) 
     # app.include_router(email_router)
 
     #app.include_router(name.router)<-- Cambiar name por el nombre de la ruta.py
