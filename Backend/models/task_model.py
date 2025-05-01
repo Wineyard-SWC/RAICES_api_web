@@ -9,12 +9,13 @@ class Comment(BaseModel):
     timestamp: str
 
 class TaskFormData(BaseModel):
+    id:str
     title: str
     description: str
     user_story_id: str
     assignee: str
     sprint_id: Optional[str] = None
-    status: Literal["To Do","In Progress","In Review","Done"]
+    status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"]
     priority: Literal["High","Medium","Low"]
     story_points: int
     deadline: Optional[str] = None

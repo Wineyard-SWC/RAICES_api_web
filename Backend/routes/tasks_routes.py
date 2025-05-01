@@ -95,6 +95,12 @@ def batch_upsert_tasks(
     "/projects/{project_id}/tasks",
     response_model=List[TaskResponse]
 )
+
+@router.get(
+    "/projects/{project_id}/tasks/khanban",
+    response_model=List[TaskFormData]
+)
+
 def get_project_tasks(project_id: str):
     # 1) Validar que el proyecto exista
     if not projects_ref.document(project_id).get().exists:
