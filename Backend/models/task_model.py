@@ -19,6 +19,7 @@ class TaskFormData(BaseModel):
     priority: Literal["High","Medium","Low"]
     story_points: int
     deadline: Optional[str] = None
+    comments: List[Comment]
 
 class TaskResponse(TaskFormData):
     id: str

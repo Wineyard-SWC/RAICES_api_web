@@ -292,3 +292,29 @@ def delete_task(project_id: str, task_id: str):
         raise HTTPException(404, "Task not found")
     ref.delete()
     return {"message": "Task deleted successfully"}
+
+# 9) Agregar un comentario a una task
+@router.post("/projects/{project_id}/tasks/{task_id}/comments")
+def add_comment(project_id: str, task_id: str, comment: dict):
+    ref = tasks_ref.document(task_id)
+    snap = ref.get()
+    if not snap.exists or snap.get("project_id") != project_id:
+        raise HTTPException(404, "Task not found")
+
+    comment["timestamp"] = datetime.utcnow().isoformat()
+    ref.update({ "comments": firestore.ArrayUnion([comment]) })
+
+    return { "message": "Comment added successfully" }
+
+
+@router.delete("/projects/{project_id}/tasks/{task_id}/comments/{comment_id}")
+def delete_comment(project_id: str, task_id: str, comment_id: str):
+    doc_ref = tasks_ref.document(task_id)
+    doc = doc_ref.get()
+    if not doc.exists or doc.get("project_id") != project_id:
+        raise HTTPException(404, "Task not found")
+    
+    data = doc.to_dict()
+    updated_comments = [c for c in data.get("comments", []) if c["id"] != comment_id]
+    doc_ref.update({"comments": updated_comments})
+    return {"message": "Comment deleted"}
