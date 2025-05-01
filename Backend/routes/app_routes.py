@@ -42,9 +42,14 @@ def verify_token(authorization: Optional[str] = Header(None)) -> dict:
             })
 
         return decoded_token
+    except auth.ExpiredIdTokenError:
+        raise HTTPException(status_code=401, detail="Token expirado. Por favor inicia sesión nuevamente.")
+    except auth.RevokedIdTokenError:
+        raise HTTPException(status_code=401, detail="Token revocado. Contacta al administrador.")
+    except auth.InvalidIdTokenError:
+        raise HTTPException(status_code=401, detail="Token inválido.")
     except Exception as e:
-        print(f"Error verificando el token: {e}")
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error interno al verificar el token: {str(e)}")
 
 @router.get("/token")
 async def get_profile(current_user: dict = Depends(verify_token)):
