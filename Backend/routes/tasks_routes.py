@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from typing import List, Optional
+from typing import List, Optional,Dict,Set
 from firebase import db, projects_ref, userstories_ref, sprints_ref, tasks_ref
 from firebase_admin import firestore
 from models.task_model import TaskFormData, TaskResponse,StatusUpdate
@@ -7,87 +7,77 @@ from datetime import datetime
 
 router = APIRouter()
 
-@router.post(
-    "/projects/{project_id}/tasks/batch",
-    response_model=List[TaskResponse]
-)
+@router.post("/projects/{project_id}/tasks/batch",
+             response_model=List[TaskResponse])
 def batch_upsert_tasks(
     project_id: str,
     tasks: List[TaskFormData],
     archive_missing: bool = False
 ):
-    # 1. Validar que el proyecto exista
+    # ⿡  verificar que el proyecto exista
     if not projects_ref.document(project_id).get().exists:
         raise HTTPException(404, "Project not found")
 
-    # 2. Cargar tasks existentes
-    existing = {
-        doc.id: doc.reference
-        for doc in tasks_ref.where("project_id", "==", project_id).stream()
+    story_map: Dict[str, str] = {          # uuid --> title
+        d.get("uuid"): d.get("title")
+        for d in userstories_ref
+              .where("projectRef", "==", project_id)
+              .where("status",     "==", "active")   # ← opcional
+              .stream()
     }
 
-    batch = db.batch()
-    seen_ids = set()
-    output: List[TaskResponse] = []
+    print(story_map)
+
+    # ⿣  para archivar: tasks existentes en Firestore
+    existing = {
+        d.id: d.reference
+        for d in tasks_ref.where("project_id", "==", project_id).stream()
+    }
+
+    batch     = db.batch()
+    seen_ids: Set[str] = set()
+    now_iso   = datetime.utcnow().isoformat()
+    output:   List[TaskResponse] = []
 
     for t in tasks:
-        # 3. Validar que la user story exista por su campo 'uuid'
-        story_q = (
-            userstories_ref
-            .where("uuid", "==", t.user_story_id)
-            .where("projectRef", "==", project_id)
-            .limit(1)
-            .stream()
-        )
-        story_docs = list(story_q)
-        if not story_docs:
-            raise HTTPException(404, f"User story {t.user_story_id} not found")
-        story_doc = story_docs[0]
-
-        # 4. Preparar datos con timestamp como string
-        now = datetime.utcnow().isoformat()
-        data = t.dict()
-        data.update({
-            "project_id": project_id,
-            "created_at": now,
-            "updated_at": now,
-            "comments": [],
-            # <-- aquí inyectas el título de la historia
-            "user_story_title": story_doc.to_dict().get("title"),
-        })
-
-        # 5. Crear la nueva tarea
-        new_ref = tasks_ref.document()
-        batch.set(new_ref, data)
-        seen_ids.add(new_ref.id)
-
-        # 6. Construir la respuesta sin duplicar 'comments'
-        response_kwargs = data.copy()
-        comments = response_kwargs.pop("comments", [])
-        # Quita también la clave que inyectaste en `data`
-        story_title = response_kwargs.pop("user_story_title", None)
-
-        output.append(
-            TaskResponse(
-                id=new_ref.id,
-                user_story_title=story_title,
-                assignee_id=None,
-                sprint_name=None,
-                comments=comments,
-                **response_kwargs
+        # ⿤  validar con el diccionario precargado
+        story_title = story_map.get(t.user_story_id)
+        if story_title is None:
+            raise HTTPException(
+                404,
+                f"User story {t.user_story_id} not found in project {project_id}"
             )
-        )
 
-    # 7. Opcional: archivar las que no vinieron en el batch
+        data = t.dict(exclude_unset=True) | {
+            "project_id":       project_id,
+            "created_at":       now_iso,
+            "updated_at":       now_iso,
+            "comments":         [],
+            "user_story_title": story_title,
+        }
+        data.pop("id", None)
+        
+        ref = tasks_ref.document()
+        batch.set(ref, data)
+        seen_ids.add(ref.id)
+
+        output.append(TaskResponse(
+            **data,
+            id=ref.id,
+            assignee_id=None,
+            sprint_name=None
+        ))
+
+    # ⿥  archivar faltantes
     if archive_missing:
-        for task_id, ref in existing.items():
-            if task_id not in seen_ids:
+        for tid, ref in existing.items():
+            if tid not in seen_ids:
                 batch.update(ref, {
-                    "status": "Done",
+                    "status_khanban": "Done",
                     "updated_at": datetime.utcnow().isoformat()
                 })
 
-    batch.commit()
+    batch.commit() 
     return output
 
 # 2) Listar todas las tasks de un proyecto
