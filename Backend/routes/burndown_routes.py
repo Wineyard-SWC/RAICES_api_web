@@ -11,8 +11,8 @@ def to_date(date_time):
 @router.get("/api/burndown")
 async def get_burndown_data(projectId: str):
     now = datetime.now().date()
-    
-    # Solo sprints del proyecto actual
+
+    # Obtener los sprints del proyecto
     sprints_ref = db.collection("sprints").where("project_id", "==", projectId)
     sprints = list(sprints_ref.stream())
 
@@ -34,21 +34,30 @@ async def get_burndown_data(projectId: str):
     if not active_sprint:
         return {"error": "No active sprint found for this project"}
 
-    # Ya no necesitas filtrar más, todos los sprints ya eran del proyecto actual
     num_sprints = len(sprints)
 
-    # Tareas del mismo proyecto
+    # Obtener las tareas del proyecto
     tasks_ref = db.collection("tasks").where("project_id", "==", projectId)
-    tasks = tasks_ref.stream()
+    tasks = list(tasks_ref.stream())
 
     total_story_points = 0
+    done_story_points = 0
+
     for task in tasks:
         task_data = task.to_dict()
         story_points = task_data.get("story_points", 0)
-        if isinstance(story_points, int):
-            total_story_points += story_points
+        if not isinstance(story_points, int):
+            continue
+        total_story_points += story_points
+
+        status_kanban = task_data.get("status_khanban", "").strip().lower()
+        if status_kanban == "done":
+            done_story_points += story_points
 
     avg_story_points = total_story_points / num_sprints if num_sprints else 0
+
     active_sprint["total_story_points"] = avg_story_points
+    active_sprint["done_story_points"] = done_story_points
+    active_sprint["remaining_story_points"] = round(avg_story_points - done_story_points, 2)
 
     return active_sprint
