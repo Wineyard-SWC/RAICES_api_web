@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 from firebase import db, projects_ref, userstories_ref, sprints_ref, tasks_ref
 from firebase_admin import firestore
-from models.task_model import TaskFormData, TaskResponse
+from models.task_model import TaskFormData, TaskResponse,StatusUpdate
 from datetime import datetime
 
 router = APIRouter()
@@ -318,3 +318,20 @@ def delete_comment(project_id: str, task_id: str, comment_id: str):
     updated_comments = [c for c in data.get("comments", []) if c["id"] != comment_id]
     doc_ref.update({"comments": updated_comments})
     return {"message": "Comment deleted"}
+
+
+@router.patch("/projects/{project_id}/tasks/{task_id}/status")
+def update_task_status(project_id: str, task_id: str, payload: StatusUpdate):
+    # Validar que el proyecto exista
+    if not projects_ref.document(project_id).get().exists:
+        raise HTTPException(404, "Project not found")
+
+    task_doc = tasks_ref.document(task_id).get()
+    if not task_doc.exists or task_doc.get("project_id") != project_id:
+        raise HTTPException(404, "Task not found")
+
+    tasks_ref.document(task_id).update({
+        "status_khanban": payload.status_khanban
+    })
+
+    return {"message": f"Task {task_id} status updated to {payload.status_khanban}"}

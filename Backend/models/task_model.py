@@ -1,6 +1,10 @@
 from pydantic import BaseModel
 from typing import List, Optional, Literal
 
+class StatusUpdate(BaseModel):
+    status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"]
+
+
 class Comment(BaseModel):
     id: str
     user_id: str

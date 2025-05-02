@@ -26,6 +26,8 @@ class UserStory(BaseModel):
     acceptanceCriteria: List[str]
     epicRef: Optional[str] = None  # idTitle de la épica (ej. EPIC-001)
     projectRef: str  # ID del proyecto
+    total_tasks: int
+    task_completed: int
 
 class UserStoryResponse(UserStory):
     id: str  # ID de Firestore (se mantiene por compatibilidad)
