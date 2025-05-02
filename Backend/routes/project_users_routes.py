@@ -1,6 +1,6 @@
 from models.users_model import Users, UsersResponse
 from models.projects_model import Projects, ProjectsResponse
-from models.project_users_model import Project_Users, Project_UsersResponse, Project_UsersRef
+from models.project_users_model import Project_Users, Project_UsersResponse, Project_UsersRef, ProjectUserFullResponse
 from firebase import project_users_ref, users_ref, projects_ref
 from fastapi import APIRouter, HTTPException
 from typing import List
@@ -36,17 +36,39 @@ def get_projects_by_user(user_id: str):
         for proj in projects if proj.exists
     ]
 
-@router.get("/project_users/project/{project_id}", response_model=List[UsersResponse])
+@router.get(
+    "/project_users/project/{project_id}",
+    response_model=List[ProjectUserFullResponse]
+)
 def get_users_by_project(project_id: str):
     project_doc = projects_ref.document(project_id).get()
     if not project_doc.exists:
         raise HTTPException(status_code=404, detail="Project not found")
-    project_users = project_users_ref.where("projectRef", "==", project_doc.reference).stream()
-    users = [
-        users_ref.document(pu.to_dict()["userRef"].id).get().to_dict()
-        for pu in project_users
-    ]
-    return [{"id": str(idx), **user} for idx, user in enumerate(users) if user]
+
+    out = []
+    for pu in project_users_ref.where("projectRef", "==", project_doc.reference).stream():
+        pu_data = pu.to_dict()
+        user_ref = pu_data["userRef"]            # DocumentReference
+        user_doc = users_ref.document(user_ref.id).get()
+        if not user_doc.exists:
+            continue
+        user = user_doc.to_dict()
+
+        out.append({
+            # datos de la relación
+            "id":         pu.id,
+            "userRef":    user_ref.id,
+            "projectRef": project_doc.id,
+            "role":       pu_data.get("role"),
+            "joinedAt":   pu_data.get("joinedAt"),
+            # ahora añadimos los datos del usuario
+            "name":    user.get("name"),
+            "email":   user.get("email"),
+            "picture": user.get("picture"),
+        })
+
+    return out
+
 
 @router.post("/project_users", response_model=Project_UsersResponse)
 def create_project_user_relation(project_user: Project_UsersRef):

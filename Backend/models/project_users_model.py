@@ -27,3 +27,15 @@ class Project_UsersResponse(BaseModel):
     projectRef: str
     role: Optional[str] = None
     joinedAt: Optional[datetime] = None
+
+class ProjectUserFullResponse(BaseModel):
+    # campos de la relación project_users
+    id: str
+    userRef: str
+    projectRef: str
+    role: Optional[str]
+    joinedAt: Optional[datetime]
+    # campos del documento de users
+    name: str
+    email: Optional[str]
+    picture: Optional[str]
