@@ -7,31 +7,29 @@ from datetime import datetime
 
 router = APIRouter()
 
-@router.post("/projects/{project_id}/tasks/batch",
-             response_model=List[TaskResponse])
+@router.post("/projects/{project_id}/tasks/batch", response_model=List[TaskResponse])
 def batch_upsert_tasks(
     project_id: str,
     tasks: List[TaskFormData],
     archive_missing: bool = False
 ):
-    # 1️⃣  verificar que el proyecto exista
+    # 1️⃣ Verificar que el proyecto exista
     if not projects_ref.document(project_id).get().exists:
-        raise HTTPException(404, "Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
 
-    story_map: Dict[str, str] = {          # uuid --> title
-        d.get("uuid"): d.get("title")
-        for d in userstories_ref
-              .where("projectRef", "==", project_id)
-              .where("status",     "==", "active")   # ← opcional
-              .stream()
+    # 2️⃣ Cargar títulos de user stories
+    story_map: Dict[str, str] = {
+        doc.get("uuid"): doc.get("title")
+        for doc in userstories_ref
+            .where("projectRef", "==", project_id)
+            .where("status", "==", "active")
+            .stream()
     }
 
-    print(story_map)
-
-    # 3️⃣  para archivar: tasks existentes en Firestore
-    existing = {
-        d.id: d.reference
-        for d in tasks_ref.where("project_id", "==", project_id).stream()
+    # 3️⃣ Buscar las tareas que ya están en Firestore
+    existing: Dict[str, any] = {
+        doc.id: doc.reference
+        for doc in tasks_ref.where("project_id", "==", project_id).stream()
     }
 
     batch     = db.batch()
@@ -40,44 +38,66 @@ def batch_upsert_tasks(
     output:   List[TaskResponse] = []
 
     for t in tasks:
-        # 4️⃣  validar con el diccionario precargado
+        # 4️⃣ Validar que la user story pertenezca al proyecto
         story_title = story_map.get(t.user_story_id)
         if story_title is None:
             raise HTTPException(
-                404,
-                f"User story {t.user_story_id} not found in project {project_id}"
+                status_code=404,
+                detail=f"User story {t.user_story_id} not found in project {project_id}"
             )
 
-        data = t.dict(exclude_unset=True) | {
+        # 5️⃣ Preparar datos comunes
+        # exclude id para no sobrescribirlo, y toma solo campos enviados
+        data = t.dict(exclude_unset=True, exclude={"id"})
+        data.update({
             "project_id":       project_id,
-            "created_at":       now_iso,
             "updated_at":       now_iso,
-            "comments":         [],
             "user_story_title": story_title,
-        }
-        data.pop("id", None)
-        
-        ref = tasks_ref.document()
-        batch.set(ref, data)
-        seen_ids.add(ref.id)
+        })
 
+        # 6️⃣ Decide si ACTUALIZA o CREA
+        if t.id in existing:
+            # actualizar campos en doc existente
+            ref = existing[t.id]
+            batch.update(ref, data)
+        else:
+            # crea uno nuevo con el mismo ID
+            data["created_at"] = now_iso
+            ref = tasks_ref.document(t.id)
+            batch.set(ref, data)
+
+        seen_ids.add(t.id)
+
+        # 7️⃣ Armar la respuesta
         output.append(TaskResponse(
-            **data,
-            id=ref.id,
-            assignee_id=None,
-            sprint_name=None
+            id               = t.id,
+            title            = data["title"],
+            description      = data["description"],
+            user_story_id    = t.user_story_id,
+            assignee         = data.get("assignee", ""),
+            sprint_id        = data.get("sprint_id"),
+            status_khanban   = data["status_khanban"],
+            priority         = data["priority"],
+            story_points     = data["story_points"],
+            deadline         = data.get("deadline"),
+            comments         = data.get("comments", []),
+            user_story_title = story_title,
+            assignee_id      = data.get("assignee"),   # ajusta si usas un campo distinto
+            sprint_name      = None,                   # si quieres el nombre, haz fetch adicional
+            created_at       = data.get("created_at", now_iso),
+            updated_at       = data["updated_at"],
         ))
 
-    # 5️⃣  archivar faltantes
+    # 8️⃣ Archivar las que ya no vienen en el payload
     if archive_missing:
         for tid, ref in existing.items():
             if tid not in seen_ids:
                 batch.update(ref, {
                     "status_khanban": "Done",
-                    "updated_at": datetime.utcnow().isoformat()
+                    "updated_at":     datetime.utcnow().isoformat()
                 })
 
-    batch.commit() 
+    batch.commit()
     return output
 
 # 2) Listar todas las tasks de un proyecto
