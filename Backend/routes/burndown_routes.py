@@ -12,7 +12,7 @@ def to_date(date_time):
 async def get_burndown_data():
     now = datetime.now().date()
     sprints_ref = db.collection("sprints")
-    sprints = sprints_ref.stream()
+    sprints = list(sprints_ref.stream())
 
     active_sprint = None
     active_project_id = None
@@ -34,7 +34,15 @@ async def get_burndown_data():
     if not active_sprint:
         return {"error": "No active sprint found"}
 
-    # Sumar story_points de las tareas que coincidan por project_id
+    # Obtener todos los sprints del mismo proyecto
+    same_project_sprints = [
+        sprint.to_dict()
+        for sprint in sprints
+        if sprint.to_dict().get("project_id") == active_project_id
+    ]
+    num_sprints = len(same_project_sprints)
+
+    # Sumar story_points de las tareas del proyecto
     total_story_points = 0
     tasks_ref = db.collection("tasks").where("project_id", "==", active_project_id)
     tasks = tasks_ref.stream()
@@ -45,6 +53,8 @@ async def get_burndown_data():
         if isinstance(story_points, int):
             total_story_points += story_points
 
-    active_sprint["total_story_points"] = total_story_points
+    # Calcular story_points promedio por sprint
+    avg_story_points = total_story_points / num_sprints if num_sprints else 0
+    active_sprint["total_story_points"] = avg_story_points
 
     return active_sprint
