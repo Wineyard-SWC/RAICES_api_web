@@ -9,13 +9,14 @@ def to_date(date_time):
     return date_time.date() if date_time else None
 
 @router.get("/api/velocitytrend")
-async def get_velocity_trend():
+async def get_velocity_trend(projectId: str):
     now = datetime.now().date()
-    sprints_ref = db.collection("sprints")
+    
+    # Solo sprints del proyecto actual
+    sprints_ref = db.collection("sprints").where("project_id", "==", projectId)
     sprints = list(sprints_ref.stream())
 
     active_sprint = None
-    active_project_id = None
 
     # Encontrar el sprint activo
     for sprint in sprints:
@@ -25,22 +26,21 @@ async def get_velocity_trend():
 
         if start and end and start <= now <= end:
             active_sprint = sprint_data
-            active_project_id = sprint_data.get("project_id")
             break
 
-    if not active_project_id:
-        return {"error": "No active sprint found"}
+    if not active_sprint:
+        return {"error": "No active sprint found for this project"}
 
     # Obtener todos los sprints del mismo proyecto
     project_sprints = [
         (sprint.id, sprint.to_dict()) for sprint in sprints
-        if sprint.to_dict().get("project_id") == active_project_id
+        if sprint.to_dict().get("project_id") == projectId
     ]
 
     num_sprints = len(project_sprints)
 
     # Obtener todas las tareas del mismo proyecto
-    tasks_ref = db.collection("tasks").where("project_id", "==", active_project_id)
+    tasks_ref = db.collection("tasks").where("project_id", "==", projectId)
     tasks = list(tasks_ref.stream())
 
     # Calcular total de story points en el proyecto
