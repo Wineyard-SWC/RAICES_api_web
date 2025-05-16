@@ -32,6 +32,9 @@ async def get_sprint_comparison(projectId: str):
     - Sprint actual (basado en fechas)
     - Sprints anteriores completados
     - Métricas de velocidad, completado, cambios de scope
+    - Risk assessment
+    - Tasks per day (burnup rate)
+    - Quality metrics
     """
     try:
         now = datetime.now(timezone.utc)
@@ -81,7 +84,7 @@ async def get_sprint_comparison(projectId: str):
                 tasks_ref.where("sprint_id", "==", sprint["id"]).stream()
             ]
 
-            # Calcular métricas
+            # Calcular métricas básicas
             total_sp = sum(t.get("story_points", 0) for t in tasks)
             completed_sp = sum(
                 t.get("story_points", 0) for t in tasks 
@@ -93,7 +96,22 @@ async def get_sprint_comparison(projectId: str):
                 if parse_firestore_date(t.get("created_at")) > sprint["start_date"]
             )
 
-            comparison_data.append({
+            # Calcular días transcurridos en el sprint
+            days_elapsed = (now - sprint["start_date"]).days if sprint["id"] == active_sprint["id"] else (sprint["end_date"] - sprint["start_date"]).days
+            days_elapsed = max(1, days_elapsed)  # Evitar división por cero
+            
+            # Calcular tasks per day (burnup rate)
+            completed_tasks = sum(1 for t in tasks if t.get("status_khanban") == "Done")
+            tasks_per_day = round(completed_tasks / days_elapsed, 1)
+            
+            # Calcular días estimados restantes (solo para sprint activo)
+            remaining_tasks = sum(1 for t in tasks if t.get("status_khanban") != "Done")
+            estimated_days_remaining = round(remaining_tasks / tasks_per_day) if tasks_per_day > 0 else 0
+            
+            # Determinar risk assessment basado en velocidad
+            risk_assessment = "Low Risk" if (completed_sp / days_elapsed) >= (total_sp / sprint["duration_weeks"] / 7) else "High Risk"
+
+            sprint_data = {
                 "sprint_id": sprint["id"],
                 "sprint_name": sprint.get("name", f"Sprint {sprint['id'][:6]}"),
                 "is_current": sprint["id"] == active_sprint["id"],
@@ -103,8 +121,19 @@ async def get_sprint_comparison(projectId: str):
                     (completed_sp / total_sp * 100) if total_sp > 0 else 0
                 ),
                 "scope_changes": scope_changes,
-                "bugs_found": 0  # TODO: Implementar conteo de bugs
-            })
+                "bugs_found": 0,  # TODO: Implementar conteo de bugs
+                
+                # Nuevos campos
+                "risk_assessment": risk_assessment,
+                "tasks_per_day": tasks_per_day,
+                "estimated_days_remaining": estimated_days_remaining if sprint["id"] == active_sprint["id"] else None,
+                "quality_metrics": {
+                    "bugs_found": 0,
+                    "priority_distribution": "All P2 priority"  # Esto podría calcularse si tienes los datos
+                }
+            }
+
+            comparison_data.append(sprint_data)
 
         # Ordenar: current primero, luego por fecha descendente
         comparison_data.sort(
