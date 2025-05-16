@@ -34,7 +34,7 @@ async def get_burndown_data(projectId: str):
     # Leer solo los campos necesarios
     tasks_snapshots = db.collection("tasks")\
         .where("project_id", "==", projectId)\
-        .select("story_points", "status_khanban")\
+        .select(["story_points", "status_khanban"])\
         .stream()
 
     total_sp = 0

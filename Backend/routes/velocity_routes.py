@@ -35,7 +35,7 @@ async def get_velocity_trend(projectId: str):
     # Obtener solo story_points y status de tareas del proyecto
     tasks_snapshots = db.collection("tasks")\
         .where("project_id", "==", projectId)\
-        .select("story_points", "status_khanban")\
+        .select(["story_points", "status_khanban"])\
         .stream()
 
     total_sp = 0
