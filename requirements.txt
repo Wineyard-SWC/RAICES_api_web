@@ -1,10 +1,5 @@
 fastapi[all]
 uvicorn[standard]
 pydantic
-google-genai
 firebase-admin
 python-dotenv
-streamlit
-sentence-transformers
-pypdf
-rapidocr-onnxruntime
