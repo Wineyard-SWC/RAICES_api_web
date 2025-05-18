@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from firebase_admin import firestore
 from datetime import datetime
+from models.task_model import GraphicsRequest
 
 router = APIRouter()
 db = firestore.client()
@@ -8,8 +9,11 @@ db = firestore.client()
 def to_date(date_time):
     return date_time.date() if date_time else None
 
-@router.get("/api/velocitytrend")
-async def get_velocity_trend(projectId: str):
+@router.post("/api/velocitytrend")
+async def get_velocity_trend(payload:GraphicsRequest):
+    projectId=payload.projectId,
+    tasks=payload.tasks or []
+
     now = datetime.now().date()
 
     # Obtener todos los sprints del proyecto
@@ -33,21 +37,25 @@ async def get_velocity_trend(projectId: str):
     num_sprints = len(sprints_data)
 
     # Obtener solo story_points y status de tareas del proyecto
-    tasks_snapshots = db.collection("tasks")\
-        .where("project_id", "==", projectId)\
-        .select(["story_points", "status_khanban"])\
-        .stream()
+    if not tasks:
+        tasks_snapshots = db.collection("tasks")\
+            .where("project_id", "==", projectId)\
+            .select("story_points", "status_khanban")\
+            .stream()
+    else:
+        tasks_snapshots = tasks
 
     total_sp = 0
     done_sp = 0
 
-    for task in tasks_snapshots:
-        data = task.to_dict()
-        sp = data.get("story_points", 0)
-        if isinstance(sp, int):
-            total_sp += sp
-            if data.get("status_khanban", "").lower() == "done":
-                done_sp += sp
+    if tasks_snapshots:
+        for task in tasks_snapshots:
+            data = task.to_dict()
+            sp = data.get("story_points", 0)
+            if isinstance(sp, int):
+                total_sp += sp
+                if data.get("status_khanban", "").lower() == "done":
+                    done_sp += sp
 
     planned = round(total_sp / num_sprints, 2) if num_sprints else 0
 

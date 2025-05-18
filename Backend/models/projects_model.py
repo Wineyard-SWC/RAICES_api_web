@@ -14,6 +14,7 @@ class Projects(BaseModel):
     totalTasks: int
     team: str               # Nombre del equipo
     teamSize: int
+    currentSprint: Optional[str]=None
 
 class ProjectsResponse(Projects):
     id: str
