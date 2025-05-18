@@ -1,5 +1,7 @@
 from pydantic import BaseModel
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Tuple
+from pydantic import validator
+from datetime import datetime
 
 class StatusUpdate(BaseModel):
     status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"]
@@ -12,23 +14,48 @@ class Comment(BaseModel):
     timestamp: str
 
 class TaskFormData(BaseModel):
-    id:str
-    title: str
-    description: str
-    user_story_id: str
-    assignee: str
+    id:Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str]= None
+    user_story_id: Optional[str]= None
+    assignee: List[Tuple[str, str]]= None
     sprint_id: Optional[str] = None
-    status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"]
-    priority: Literal["High","Medium","Low"]
-    story_points: int
+    status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"] = None 
+    priority: Optional[Literal["High","Medium","Low"]] = None
+    story_points: Optional[int] = None
     deadline: Optional[str] = None
-    comments: List[Comment]
+    comments: Optional[List[Comment]]=None
+    created_by: Optional[Tuple[str, str]]  = None    
+    modified_by: Optional[Tuple[str, str]] = None
+    finished_by: Optional[Tuple[str, str]] = None
+    date_created: Optional[str] = None
+    date_modified: Optional[str] = None
+    date_completed: Optional[str] = None
 
 class TaskResponse(TaskFormData):
     id: str
     user_story_title: Optional[str]
-    assignee_id: Optional[str]
+    assignee_id: Optional[List[Tuple[str,str]]] = []
     sprint_name: Optional[str]
     created_at: str
     updated_at: str
     comments: List[Comment]
+
+    @validator('created_at', 'updated_at', pre=True)
+    def convert_timestamp(cls, v):
+        if v is None:
+            return ""
+        if hasattr(v, 'isoformat'):
+            return v.isoformat()
+        if hasattr(v, 'seconds'):
+            # Firestore Timestamp object
+            return datetime.fromtimestamp(v.seconds).isoformat()
+        return str(v)
+    
+class TaskPartialKhabanResponse(BaseModel):
+    id: str
+    user_story_title: Optional[str]
+    assignee_id: Optional[List[Tuple[str,str]]] = []
+    sprint_name: Optional[str]
+    created_at: str
+    updated_at: str

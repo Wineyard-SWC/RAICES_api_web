@@ -3,8 +3,9 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 from firebase import userstories_ref, epics_ref, projects_ref
 from firebase_admin import firestore
-from models.userStorie_model import UserStory, UserStoryResponse
+from models.userStorie_model import UserStory, UserStoryResponse,StatusUpdate
 from typing import Optional
+from datetime import datetime
 
 router = APIRouter()
 
@@ -194,6 +195,34 @@ def upsert_userstory(project_id: str, story: UserStory):
         return UserStoryResponse(id=new_doc.id, **story.dict())
     
 
+# 7) Actualizar una task existente
+@router.put(
+    "/projects/{project_id}/userstories/{story_id}",
+    response_model=UserStoryResponse
+)
+def update_story(project_id: str, story_id: str, t: UserStory):
+    ref = userstories_ref.document(story_id)
+    snap = ref.get()
+    if not snap.exists or snap.get("projectRef") != project_id:
+        raise HTTPException(404, "Story not found")
+
+    data = t.dict(exclude_unset=True, exclude_none=True)
+    ref.update(data)
+
+    updated = ref.get().to_dict() or {}
+
+    updated_copy = {k: v for k, v in updated.items() 
+                    if k not in ['id']}
+   
+
+    return UserStoryResponse(
+        id=story_id,
+        **updated_copy
+    )
+
+
+
+
 # Eliminar user story
 @router.delete("/projects/{project_id}/userstories/{story_id}")
 def delete_userstory(project_id: str, story_id: str):
@@ -206,3 +235,48 @@ def delete_userstory(project_id: str, story_id: str):
     
     userstories_ref.document(story_list[0].id).delete()
     return {"message": "User story deleted successfully"}
+
+
+
+# 9) Agregar un comentario a una task
+@router.post("/projects/{project_id}/userstories/{story_id}/comments")
+def add_comment(project_id: str, story_id: str, comment: dict):
+    ref = userstories_ref.document(story_id)
+    snap = ref.get()
+    if not snap.exists or snap.get("projectRef") != project_id:
+        raise HTTPException(404, "Story not found")
+
+    comment["timestamp"] = datetime.utcnow().isoformat()
+    ref.update({ "comments": firestore.ArrayUnion([comment]) })
+
+    return { "message": "Comment added successfully" }
+
+
+@router.delete("/projects/{project_id}/userstories/{story_id}/comments/{comment_id}")
+def delete_comment(project_id: str, story_id: str, comment_id: str):
+    doc_ref = userstories_ref.document(story_id)
+    doc = doc_ref.get()
+    if not doc.exists or doc.get("projectRef") != project_id:
+        raise HTTPException(404, "Story not found")
+    
+    data = doc.to_dict()
+    updated_comments = [c for c in data.get("comments", []) if c["id"] != comment_id]
+    doc_ref.update({"comments": updated_comments})
+    return {"message": "Comment deleted"}
+
+
+@router.patch("/projects/{project_id}/userstories/{story_id}/status")
+def update_story_status(project_id: str, story_id: str, payload: StatusUpdate):
+    # Validar que el proyecto exista
+    if not projects_ref.document(project_id).get().exists:
+        raise HTTPException(404, "Project not found")
+
+    story_doc = userstories_ref.document(story_id).get()
+    if not story_doc.exists or story_doc.get("projectRef") != project_id:
+        raise HTTPException(404, "Story not found")
+
+    userstories_ref.document(story_id).update({
+        "status_khanban": payload.status_khanban
+    })
+
+    return {"message": f"Story {story_id} status updated to {payload.status_khanban}"}
