@@ -13,6 +13,16 @@ class Comment(BaseModel):
     text: str
     timestamp: str
 
+
+class TaskBurndownChart(BaseModel):
+    story_points: int=None
+    status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"]=None
+    
+class GraphicsRequest(BaseModel):
+    projectId: str
+    tasks: Optional[List[TaskBurndownChart]] = []
+
+
 class TaskFormData(BaseModel):
     id:Optional[str] = None
     title: Optional[str] = None

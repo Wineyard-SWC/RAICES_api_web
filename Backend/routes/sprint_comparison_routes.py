@@ -57,8 +57,7 @@ async def get_sprint_comparison(projectId: str):
             sprints.append(sprint)
 
         if not sprints:
-            raise HTTPException(404, "No sprints found for this project")
-
+            return []
         # 2. Identificar sprint activo (rango de fechas actual)
         active_sprint = next(
             (s for s in sprints if s["start_date"] <= now <= s["end_date"]),
@@ -81,9 +80,13 @@ async def get_sprint_comparison(projectId: str):
             # Obtener tareas del sprint
             tasks = [
                 t.to_dict() for t in 
-                tasks_ref.where("sprint_id", "==", sprint["id"]).stream()
+                tasks_ref\
+                .where("sprint_id", "==", sprint["id"])\
+                .select("story_points", "status_khanban","created_at")\
+                .stream()
             ]
 
+        
             # Calcular métricas básicas
             total_sp = sum(t.get("story_points", 0) for t in tasks)
             completed_sp = sum(
