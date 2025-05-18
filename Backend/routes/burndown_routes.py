@@ -43,6 +43,7 @@ async def get_burndown_data(payload:GraphicsRequest):
     else:
         tasks_snapshots = tasks
 
+
     total_sp = 0
     done_sp = 0
 

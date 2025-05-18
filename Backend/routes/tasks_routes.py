@@ -130,7 +130,7 @@ def batch_upsert_tasks(
             date_completed   = safe_iso(data.get("date_completed")),
         ))
 
-    # 8️⃣ Archivar las que ya no vienen en el payload
+    # Archivar las que ya no vienen en el payload
     if archive_missing:
         for tid, ref in existing.items():
             if tid not in seen_ids:
@@ -144,7 +144,7 @@ def batch_upsert_tasks(
 
 # 2) Listar todas las tasks de un proyecto
 @router.get(
-    "/projects/{project_id}/tasks",
+    "/projects/{project_id}/tasks", tags=["Tasks"],
     response_model=List[TaskResponse]
 )
 
@@ -197,7 +197,7 @@ def get_project_tasks(project_id: str):
 # 3) Obtener una task por su ID
 @router.get(
     "/projects/{project_id}/tasks/{task_id}",
-    response_model=TaskResponse
+    response_model=TaskResponse, tags=["Tasks"]
 )
 def get_task(project_id: str, task_id: str):
     doc = tasks_ref.document(task_id).get()
@@ -217,7 +217,7 @@ def get_task(project_id: str, task_id: str):
 # 4) Listar tasks de una user story
 @router.get(
     "/projects/{project_id}/userstories/{user_story_id}/tasks",
-    response_model=List[TaskResponse]
+    response_model=List[TaskResponse], tags=["Tasks"]
 )
 def get_tasks_by_story(project_id: str, user_story_id: str):
     # valida existencia user story
@@ -290,6 +290,7 @@ def get_tasks_by_sprint(project_id: str, sprint_id: str):
         .limit(1)
         .stream()
     )
+
     if not list(sprint_q):
         raise HTTPException(404, "Sprint not found")
 
