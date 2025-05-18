@@ -16,6 +16,8 @@ from .tasks_routes import router as tasks_router
 from .sprint_routes import router as sprints_router
 from .burndown_routes import router as burndown_router 
 from .velocity_routes import router as velocity_router
+from .permissions_routes import router as permissions_router
+
 
 #from .email_routes import router as emai_router
 

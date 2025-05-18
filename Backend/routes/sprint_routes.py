@@ -52,6 +52,7 @@ def create_sprint(
         **raw
     )
 
+# Buscar un sprint por ID
 @router.get(
     "/{sprint_id}",
     response_model=SprintResponse,
@@ -80,7 +81,7 @@ def get_sprint(
         **raw
     )
 
-
+# Listar todos los sprints de un proyecto
 @router.get(
     "",
     response_model=List[SprintResponse],
@@ -106,7 +107,7 @@ def list_sprints(project_id: str):
         raise HTTPException(500, f"Failed to fetch sprints: {e}")
     
 
-
+# Actualizar un sprint por ID
 @router.patch(
     "/{sprint_id}",
     response_model=SprintResponse,
@@ -145,7 +146,7 @@ def update_sprint(
         **updated
     )
 
-
+# Eliminar un sprint por ID
 @router.delete(
     "/{sprint_id}",
     status_code=204

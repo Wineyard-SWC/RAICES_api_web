@@ -15,7 +15,7 @@ class SprintUserStoryData(BaseModel):
     title: str
     description: str
     acceptance_criteria: List[str]
-    tasks: List[str]  # o bien el tipo de Task si quieres embebed
+    tasks: List[str]
     selected: bool
 
 class SprintFormData(BaseModel):
@@ -24,7 +24,6 @@ class SprintFormData(BaseModel):
     end_date: datetime
     duration_weeks: int
     status: Literal["planning", "active", "completed"]
-    # NO incluyas project_id aquí, lo tomamos de la URL
 
     team_members: List[SprintMemberData]
     user_stories: List[SprintUserStoryData]

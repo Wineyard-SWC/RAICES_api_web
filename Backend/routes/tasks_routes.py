@@ -7,7 +7,18 @@ from datetime import datetime
 
 router = APIRouter()
 
-@router.post("/projects/{project_id}/tasks/batch", response_model=List[TaskResponse])
+tags_metadata = [
+    {
+        "name": "Tasks",
+        "description": "Operaciones relacionadas con las tareas del proyecto",
+    },
+    {
+        "name": "Comments",
+        "description": "Gestión de comentarios en las tareas",
+    },
+]
+
+@router.post("/projects/{project_id}/tasks/batch", tags=["Tasks"], response_model=List[TaskResponse])
 def batch_upsert_tasks(
     project_id: str,
     tasks: List[TaskFormData],
@@ -68,7 +79,7 @@ def batch_upsert_tasks(
 
         seen_ids.add(t.id)
 
-        # 7️⃣ Armar la respuesta
+        # Armar la respuesta
         output.append(TaskResponse(
             id               = t.id,
             title            = data["title"],
@@ -88,7 +99,7 @@ def batch_upsert_tasks(
             updated_at       = data["updated_at"],
         ))
 
-    # 8️⃣ Archivar las que ya no vienen en el payload
+    # Archivar las que ya no vienen en el payload
     if archive_missing:
         for tid, ref in existing.items():
             if tid not in seen_ids:
@@ -102,7 +113,7 @@ def batch_upsert_tasks(
 
 # 2) Listar todas las tasks de un proyecto
 @router.get(
-    "/projects/{project_id}/tasks",
+    "/projects/{project_id}/tasks", tags=["Tasks"],
     response_model=List[TaskResponse]
 )
 
@@ -110,7 +121,6 @@ def batch_upsert_tasks(
     "/projects/{project_id}/tasks/khanban",
     response_model=List[TaskFormData]
 )
-
 def get_project_tasks(project_id: str):
     # 1) Validar que el proyecto exista
     if not projects_ref.document(project_id).get().exists:
@@ -147,7 +157,7 @@ def get_project_tasks(project_id: str):
 # 3) Obtener una task por su ID
 @router.get(
     "/projects/{project_id}/tasks/{task_id}",
-    response_model=TaskResponse
+    response_model=TaskResponse, tags=["Tasks"]
 )
 def get_task(project_id: str, task_id: str):
     doc = tasks_ref.document(task_id).get()
@@ -167,7 +177,7 @@ def get_task(project_id: str, task_id: str):
 # 4) Listar tasks de una user story
 @router.get(
     "/projects/{project_id}/userstories/{user_story_id}/tasks",
-    response_model=List[TaskResponse]
+    response_model=List[TaskResponse], tags=["Tasks"]
 )
 def get_tasks_by_story(project_id: str, user_story_id: str):
     # valida existencia user story
@@ -214,6 +224,7 @@ def get_tasks_by_sprint(project_id: str, sprint_id: str):
         .limit(1)
         .stream()
     )
+
     if not list(sprint_q):
         raise HTTPException(404, "Sprint not found")
 
