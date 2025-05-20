@@ -6,7 +6,7 @@ from firebase_admin import firestore
 from models.req_models import Requirement, RequirementResponse
 from typing import Optional
 
-router = APIRouter()
+router = APIRouter(tags=["Requirements"])
 
 @router.post("/projects/{project_id}/requirements/batch", response_model=List[RequirementResponse])
 def create_requirements_batch(

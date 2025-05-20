@@ -3,7 +3,7 @@ from datetime import datetime
 from firebase_admin import firestore
 from datetime import datetime, timezone
 
-router = APIRouter()
+router = APIRouter(tags=["Sprint Comparison"])
 db = firestore.client()
 
 def parse_firestore_date(date_value):
@@ -82,7 +82,7 @@ async def get_sprint_comparison(projectId: str):
                 t.to_dict() for t in 
                 tasks_ref\
                 .where("sprint_id", "==", sprint["id"])\
-                .select("story_points", "status_khanban","created_at")\
+                .select(["story_points", "status_khanban","created_at"])\
                 .stream()
             ]
 

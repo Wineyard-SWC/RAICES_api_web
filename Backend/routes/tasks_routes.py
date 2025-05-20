@@ -5,7 +5,7 @@ from firebase_admin import firestore
 from models.task_model import TaskFormData, TaskResponse,StatusUpdate,TaskPartialKhabanResponse
 from datetime import datetime
 
-router = APIRouter()
+router = APIRouter(tags=["Tasks"])
 
 def safe_iso(dt):
     if isinstance(dt, datetime):
@@ -144,7 +144,7 @@ def batch_upsert_tasks(
 
 # 2) Listar todas las tasks de un proyecto
 @router.get(
-    "/projects/{project_id}/tasks", tags=["Tasks"],
+    "/projects/{project_id}/tasks",
     response_model=List[TaskResponse]
 )
 
@@ -197,7 +197,7 @@ def get_project_tasks(project_id: str):
 # 3) Obtener una task por su ID
 @router.get(
     "/projects/{project_id}/tasks/{task_id}",
-    response_model=TaskResponse, tags=["Tasks"]
+    response_model=TaskResponse
 )
 def get_task(project_id: str, task_id: str):
     doc = tasks_ref.document(task_id).get()

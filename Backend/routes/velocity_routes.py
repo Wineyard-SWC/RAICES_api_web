@@ -3,7 +3,7 @@ from firebase_admin import firestore
 from datetime import datetime
 from models.task_model import GraphicsRequest
 
-router = APIRouter()
+router = APIRouter(tags=["VelocityTrend"])
 db = firestore.client()
 
 def to_date(date_time):

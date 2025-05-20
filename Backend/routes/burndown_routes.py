@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from firebase_admin import firestore
 from datetime import datetime
 from models.task_model import GraphicsRequest
-router = APIRouter()
+router = APIRouter(tags=["BurndownChart"])
 db = firestore.client()
 
 def to_date(date_time):

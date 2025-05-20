@@ -6,7 +6,7 @@ from fastapi import Query
 
 
 # Inicializar FastAPI
-router = APIRouter()
+router = APIRouter(tags=["Users"])
 
 # Obtener todos los usuarios
 @router.get("/users", response_model=List[UsersResponse])

@@ -3,7 +3,7 @@ from typing import List
 from firebase import users_ref  # Asegúrate de importar la referencia correcta a la colección "users"
 from models.users_model import Users, UsersResponse
 
-router = APIRouter()
+router = APIRouter(tags=["User Search"])
 
 @router.get("/users/search", response_model=List[UsersResponse])
 def search_users(
