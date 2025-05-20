@@ -3,7 +3,7 @@ from typing import List
 from firebase import projects_ref, project_users_ref
 from models.projects_model import Projects, ProjectsResponse
 
-router = APIRouter()
+router = APIRouter(tags=["Projects"])
 
 @router.get("/projects", response_model=List[ProjectsResponse])
 def get_projects():

@@ -4,7 +4,7 @@ from firebase import users_ref
 from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import Optional
 
-router = APIRouter()
+router = APIRouter(tags=["App"])
 
 @router.get("/")
 def read_root():

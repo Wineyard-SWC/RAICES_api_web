@@ -5,7 +5,7 @@ from firebase import epics_ref, req_ref, projects_ref
 from firebase_admin import firestore
 from models.epic_models import Epic, EpicResponse
 
-router = APIRouter()
+router = APIRouter(tags=["Epics"])
 
 @router.post("/projects/{project_id}/epics/batch", response_model=List[EpicResponse])
 def create_epics_batch(project_id: str, epics: List[Epic], archive_missing: bool = True):

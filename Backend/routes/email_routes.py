@@ -11,7 +11,7 @@ from typing import Optional
 # Importa users_ref (o el que uses) si necesitas validar algo adicional
 # from firebase import users_ref
 
-router = APIRouter()
+router = APIRouter(tags=["Email"])
 
 # ------------------------------------------------------------------------------
 # MODEL (Request body)

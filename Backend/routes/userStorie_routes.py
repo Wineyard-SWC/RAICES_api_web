@@ -7,7 +7,7 @@ from models.userStorie_model import UserStory, UserStoryResponse,StatusUpdate
 from typing import Optional
 from datetime import datetime
 
-router = APIRouter()
+router = APIRouter(tags=["UserStorie"])
 
 @router.post("/projects/{project_id}/userstories/batch", response_model=List[UserStoryResponse])
 def create_userstories_batch(

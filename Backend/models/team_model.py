@@ -27,3 +27,11 @@ class TeamUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     members: Optional[List[str]] = None
+
+class TeamMetricsResponse(BaseModel):
+    velocity: float
+    mood: int  # Lo dejamos hardcodeado por ahora
+    tasks_completed: int
+    tasks_in_progress: int
+    avg_story_time: float
+    sprint_progress: float
