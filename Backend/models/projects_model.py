@@ -1,6 +1,14 @@
 from pydantic import BaseModel
 from typing import Optional,List
 
+class SprintMemberData(BaseModel):
+    id: str
+    name: str
+    role: str
+    avatar: Optional[str]
+    capacity: int
+    allocated: int
+
 class Projects(BaseModel):
     title: str
     description: str
@@ -15,6 +23,11 @@ class Projects(BaseModel):
     team: str               # Nombre del equipo
     teamSize: int
     currentSprint: Optional[str]=None
+    sprints: Optional[List[str]]=None
+    teamMembers:Optional[List[SprintMemberData]]=None
+    created_at:Optional[str]=None
+    updated_at:Optional[str]=None
+    createdBy:Optional[SprintMemberData]=None
 
 class ProjectsResponse(Projects):
     id: str
