@@ -5,7 +5,7 @@ from firebase import project_users_ref, users_ref, projects_ref
 from fastapi import APIRouter, HTTPException
 from typing import List
 
-router = APIRouter()
+router = APIRouter(tags=["ProjectUsers"])
 
 @router.get("/project_users", response_model=List[Project_UsersResponse])
 def get_all_project_users():

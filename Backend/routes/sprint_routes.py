@@ -6,7 +6,7 @@ from models.sprint_model import SprintFormData, SprintResponse
 
 router = APIRouter(
     prefix="/projects/{project_id}/sprints",
-    tags=["sprints"],
+    tags=["Sprints"],
 )
 
 @router.post(

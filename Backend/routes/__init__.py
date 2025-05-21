@@ -20,5 +20,6 @@ from .permissions_routes import router as permissions_router
 
 from .sprint_comparison_routes import router as sprint_comparision_router
 from .bug_routes import router as bug_router
+from .teams_routes import router as teams_router
 #from .email_routes import router as emai_router
 
