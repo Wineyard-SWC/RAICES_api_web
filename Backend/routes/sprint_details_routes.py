@@ -1,0 +1,280 @@
+from fastapi import APIRouter, HTTPException
+from datetime import datetime
+from firebase_admin import firestore
+from datetime import datetime, timezone
+from models.task_model import GraphicsRequest
+
+router = APIRouter(tags=["Sprint Details"])
+db = firestore.client()
+
+def to_date(date_time):
+    return date_time.date() if date_time else None
+
+
+def parse_firestore_date(date_value):
+    if isinstance(date_value, str):
+        dt = datetime.fromisoformat(date_value)
+    elif isinstance(date_value, datetime):
+        dt = date_value
+    elif hasattr(date_value, "timestamp"):
+        dt = datetime.fromtimestamp(date_value.timestamp())
+    elif hasattr(date_value, "seconds") and hasattr(date_value, "nanos"):
+        dt = datetime.fromtimestamp(date_value.seconds + date_value.nanos / 1e9)
+    else:
+        return None
+
+    # Asegurar que el datetime tenga zona horaria UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt
+
+
+@router.get("/api/sprints/comparison", response_model=list)
+async def get_sprint_comparison(projectId: str):
+    """
+    Obtiene la comparación de sprints para un proyecto, incluyendo:
+    - Sprint actual (basado en fechas)
+    - Sprints anteriores completados
+    - Métricas de velocidad, completado, cambios de scope
+    - Risk assessment
+    - Quality metrics
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        
+        # 1. Obtener todos los sprints del proyecto
+        sprints_ref = db.collection("sprints").where("project_id", "==", projectId)
+        sprints = []
+        
+        for doc in sprints_ref.stream():
+            sprint = doc.to_dict()
+            sprint["id"] = doc.id
+            
+            # Parsear fechas
+            sprint["start_date"] = parse_firestore_date(sprint.get("start_date"))
+            sprint["end_date"] = parse_firestore_date(sprint.get("end_date"))
+            
+            if not sprint["start_date"] or not sprint["end_date"]:
+                continue
+                
+            sprints.append(sprint)
+
+        if not sprints:
+            return []
+        # 2. Identificar sprint activo (rango de fechas actual)
+        active_sprint = next(
+            (s for s in sprints if s["start_date"] <= now <= s["end_date"]),
+            None
+        )
+
+        # 3. Si no hay activo, usar el más reciente por fecha de inicio
+        if not active_sprint:
+            active_sprint = max(sprints, key=lambda x: x["start_date"])
+
+        # 4. Procesar cada sprint para la comparación
+        comparison_data = []
+        tasks_ref = db.collection("tasks")
+        bugs_ref = db.collection("bugs")
+        
+        for sprint in sprints:
+            # Saltar sprints futuros que no son el activo
+            if sprint["end_date"] > now and sprint["id"] != active_sprint["id"]:
+                continue
+
+            # Obtener tareas del sprint
+            tasks = [
+                t.to_dict() for t in 
+                tasks_ref\
+                .where("sprint_id", "==", sprint["id"])\
+                .select(["story_points", "status_khanban", "created_at"])\
+                .stream()
+            ]
+
+            # Obtener bugs del sprint
+            bugs = [
+                b.to_dict() for b in 
+                bugs_ref\
+                .where("sprintId", "==", sprint["id"])\
+                .select(["severity"])\
+                .stream()
+            ]
+            total_bugs = len(bugs)
+
+            # Calcular métricas básicas
+            total_sp = sum(t.get("story_points", 0) for t in tasks)
+            completed_sp = sum(
+                t.get("story_points", 0) for t in tasks 
+                if t.get("status_khanban") == "Done"
+            )
+            
+            scope_changes = sum(
+                1 for t in tasks 
+                if parse_firestore_date(t.get("created_at")) > sprint["start_date"]
+            )
+
+            # Calcular días transcurridos en el sprint
+            days_elapsed = (now - sprint["start_date"]).days if sprint["id"] == active_sprint["id"] else (sprint["end_date"] - sprint["start_date"]).days
+            days_elapsed = max(1, days_elapsed)  # Evitar división por cero
+            
+            # Determinar risk assessment basado en múltiples factores
+            velocity = completed_sp / days_elapsed
+            average_velocity = total_sp / (sprint["duration_weeks"] * 7)
+            risk_assessment = "Low Risk"
+
+            if velocity < average_velocity * 0.8 or scope_changes > 5 or total_bugs > 10:
+                risk_assessment = "Medium Risk"
+            if velocity < average_velocity * 0.5 or scope_changes > 10 or total_bugs > 20:
+                risk_assessment = "High Risk"
+
+            sprint_data = {
+                "sprint_id": sprint["id"],
+                "sprint_name": sprint.get("name", f"Sprint {sprint['id'][:6]}"),
+                "is_current": sprint["id"] == active_sprint["id"],
+                "total_story_points": total_sp,
+                "completed_story_points": completed_sp,
+                "completion_percentage": round(
+                    (completed_sp / total_sp * 100) if total_sp > 0 else 0
+                ),
+                "scope_changes": scope_changes,
+                "bugs_found": total_bugs,
+                "risk_assessment": risk_assessment,
+                "velocity": velocity,
+                "average_velocity": average_velocity
+            }
+
+            comparison_data.append(sprint_data)
+
+        # Ordenar: current primero, luego por fecha descendente
+        comparison_data.sort(
+            key=lambda x: (not x["is_current"], x["sprint_id"]), 
+            reverse=True
+        )
+
+        return comparison_data or []
+
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate sprint comparison: {str(e)}")
+    
+
+@router.post("/api/burndown")
+async def get_burndown_data(payload:GraphicsRequest):
+    projectId=payload.projectId
+    tasks=payload.tasks or []
+
+    now = datetime.now().date()
+
+    sprints_snapshots = db.collection("sprints").where("project_id", "==", projectId).stream()
+
+    active_sprint = None
+
+    for snap in sprints_snapshots:
+        data = snap.to_dict()
+        start = data.get("start_date")
+        end = data.get("end_date")
+        start_date = to_date(start)
+        end_date = to_date(end)
+
+        if start_date and end_date and start_date <= now <= end_date:
+            data["id"] = snap.id
+            data["duration_days"] = (end_date - start_date).days + 1
+            active_sprint = data
+            break
+    
+    if not active_sprint:
+        return {"error": "No active sprint found for this project"}
+
+    total_sp = 0
+    done_sp = 0
+
+    if tasks:
+        # Process tasks passed from frontend
+        for task in tasks:
+            sp = task.story_points or 0
+            total_sp += sp
+            if task.status_khanban and task.status_khanban.strip().lower() == "done":
+                done_sp += sp
+    else:
+        # Fetch tasks from Firestore if not provided
+        tasks_snapshots = db.collection("tasks")\
+            .where("project_id", "==", projectId)\
+            .select(["story_points", "status_khanban"])\
+            .get()
+        
+        for task in tasks_snapshots:
+            data = task.to_dict()
+            sp = data.get("story_points", 0)
+            if isinstance(sp, int):
+                total_sp += sp
+                if data.get("status_khanban", "").strip().lower() == "done":
+                    done_sp += sp
+
+    # Agregar al sprint activo
+    active_sprint["total_story_points"] = total_sp
+    active_sprint["done_story_points"] = done_sp
+    active_sprint["remaining_story_points"] = max(total_sp - done_sp, 0)
+
+    return active_sprint
+
+
+@router.post("/api/velocitytrend")
+async def get_velocity_trend(payload:GraphicsRequest):
+    projectId=payload.projectId
+    tasks=payload.tasks or []
+
+    now = datetime.now().date()
+
+    # Obtener todos los sprints del proyecto
+    sprints_snapshots = db.collection("sprints").where("project_id", "==", projectId).stream()
+    sprints_data = []
+    active_sprint = None
+
+    for snap in sprints_snapshots:
+        data = snap.to_dict()
+        start = to_date(data.get("start_date"))
+        end = to_date(data.get("end_date"))
+
+        sprints_data.append((snap.id, data))
+
+        if start and end and start <= now <= end:
+            active_sprint = data
+
+    if not active_sprint:
+        return {"error": "No active sprint found for this project"}
+
+    num_sprints = len(sprints_data)
+
+    total_sp = 0
+    done_sp = 0
+
+    if tasks:
+        # Process tasks passed from frontend
+        for task in tasks:
+            sp = task.story_points or 0
+            total_sp += sp
+            if task.status_khanban and task.status_khanban.strip().lower() == "done":
+                done_sp += sp
+    else:
+        # Fetch tasks from Firestore if not provided
+        tasks_snapshots = db.collection("tasks")\
+            .where("project_id", "==", projectId)\
+            .select(["story_points", "status_khanban"])\
+            .get()
+        
+        for task in tasks_snapshots:
+            data = task.to_dict()
+            sp = data.get("story_points", 0)
+            if isinstance(sp, int):
+                total_sp += sp
+                if data.get("status_khanban", "").strip().lower() == "done":
+                    done_sp += sp
+
+    planned = round(total_sp / num_sprints, 2) if num_sprints else 0
+
+    return [
+        {
+            "sprint": s.get("name") or f"Sprint {s.get('number', sid[:6])}",
+            "Planned": planned,
+            "Actual": done_sp
+        } for sid, s in sprints_data
+    ]

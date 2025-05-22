@@ -6,15 +6,16 @@ from firebase_admin import firestore
 from models.userStorie_model import UserStory, UserStoryResponse,StatusUpdate
 from typing import Optional
 from datetime import datetime
+from helpers import delete_user_story_and_related
 
-router = APIRouter(tags=["UserStorie"])
+router = APIRouter(tags=["UserStories"])
 
 @router.post("/projects/{project_id}/userstories/batch", response_model=List[UserStoryResponse])
 def create_userstories_batch(
     project_id: str,
     userstories: List[UserStory],
-    epic_id: Optional[str] = None,  # Opcional: asignar todos a la misma épica
-    archive_missing: bool = True    # Opcional: archivar historias no incluidas
+    epic_id: Optional[str] = None,  
+    archive_missing: bool = True    
 ):
     project_ref = projects_ref.document(project_id)
     project = project_ref.get()
@@ -226,15 +227,12 @@ def update_story(project_id: str, story_id: str, t: UserStory):
 # Eliminar user story
 @router.delete("/projects/{project_id}/userstories/{story_id}")
 def delete_userstory(project_id: str, story_id: str):
-    story_query = userstories_ref.where("idTitle", "==", story_id)\
-                                .where("projectRef", "==", project_id)\
-                                .limit(1).stream()
-    story_list = list(story_query)
-    if not story_list:
-        raise HTTPException(status_code=404, detail="User story not found")
-    
-    userstories_ref.document(story_list[0].id).delete()
-    return {"message": "User story deleted successfully"}
+    try:
+        delete_user_story_and_related(project_id, story_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"message": "User story, tasks and related bugs deleted successfully"}
+
 
 
 

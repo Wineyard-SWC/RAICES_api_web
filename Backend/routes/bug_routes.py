@@ -6,7 +6,7 @@ from firebase_admin import firestore
 from datetime import datetime
 
 
-router = APIRouter()
+router = APIRouter(tags=["Bugs"])
 
 def safe_iso(dt):
     if isinstance(dt, datetime):
