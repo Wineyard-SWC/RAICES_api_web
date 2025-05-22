@@ -14,11 +14,9 @@ from .userStorie_routes import router as userStorie_router
 from .users_search_routes import router as users_search_router
 from .tasks_routes import router as tasks_router
 from .sprint_routes import router as sprints_router
-from .burndown_routes import router as burndown_router 
-from .velocity_routes import router as velocity_router
 from .permissions_routes import router as permissions_router
 
-from .sprint_comparison_routes import router as sprint_comparision_router
+from .sprint_details_routes import router as sprint_details_router
 from .bug_routes import router as bug_router
 from .teams_routes import router as teams_router
 from .user_roles_routes import router as user_roles_router
