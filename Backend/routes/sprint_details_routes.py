@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 from firebase_admin import firestore
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from models.task_model import GraphicsRequest
 
 router = APIRouter(tags=["Sprint Details"])
@@ -158,63 +158,101 @@ async def get_sprint_comparison(projectId: str):
     
 
 @router.post("/api/burndown")
-async def get_burndown_data(payload:GraphicsRequest):
-    projectId=payload.projectId
-    tasks=payload.tasks or []
+async def get_burndown_data(payload: GraphicsRequest):
+    project_id = payload.projectId
+    tasks = payload.tasks or []
 
-    now = datetime.now().date()
+    now = datetime.now(timezone.utc).date()
 
-    sprints_snapshots = db.collection("sprints").where("project_id", "==", projectId).stream()
-
+    # Obtener el sprint activo
+    sprints_ref = db.collection("sprints").where("project_id", "==", project_id)
     active_sprint = None
-
-    for snap in sprints_snapshots:
-        data = snap.to_dict()
-        start = data.get("start_date")
-        end = data.get("end_date")
-        start_date = to_date(start)
-        end_date = to_date(end)
-
-        if start_date and end_date and start_date <= now <= end_date:
-            data["id"] = snap.id
-            data["duration_days"] = (end_date - start_date).days + 1
-            active_sprint = data
-            break
     
+    for doc in sprints_ref.stream():
+        sprint = doc.to_dict()
+        sprint["id"] = doc.id
+        start_date = parse_firestore_date(sprint.get("start_date"))
+        end_date = parse_firestore_date(sprint.get("end_date"))
+        
+        if start_date and end_date:
+            sprint["start_date"] = start_date.date()
+            sprint["end_date"] = end_date.date()
+            if sprint["start_date"] <= now <= sprint["end_date"]:
+                active_sprint = sprint
+                break
+
     if not active_sprint:
         return {"error": "No active sprint found for this project"}
 
-    total_sp = 0
-    done_sp = 0
+    # Obtener todas las tareas del sprint
+    if not tasks:
+        tasks_query = db.collection("tasks").where("sprint_id", "==", active_sprint["id"])
+        tasks = [t.to_dict() for t in tasks_query.stream()]
 
-    if tasks:
-        # Process tasks passed from frontend
-        for task in tasks:
-            sp = task.story_points or 0
-            total_sp += sp
-            if task.status_khanban and task.status_khanban.strip().lower() == "done":
-                done_sp += sp
-    else:
-        # Fetch tasks from Firestore if not provided
-        tasks_snapshots = db.collection("tasks")\
-            .where("project_id", "==", projectId)\
-            .select(["story_points", "status_khanban"])\
-            .get()
+    # Procesar datos para el burndown
+    total_sp = sum(t.get("story_points", 0) for t in tasks)
+    sprint_days = (active_sprint["end_date"] - active_sprint["start_date"]).days + 1
+    
+    # Calcular progreso diario
+    daily_progress = []
+    current_date = active_sprint["start_date"]
+    
+    # Obtener fechas de completado de tareas
+    task_completion_dates = []
+    for task in tasks:
+        if task.get("status_khanban", "").lower() == "done":
+            completed_at = parse_firestore_date(task.get("completed_at") or task.get("updated_at"))
+            if completed_at:
+                task_completion_dates.append({
+                    "date": completed_at.date(),
+                    "sp": task.get("story_points", 0)
+                })
+
+    # Calcular SP completados por día
+    sp_completed_per_day = {}
+    for day in range(sprint_days):
+        current_date = active_sprint["start_date"] + timedelta(days=day)
+        sp_completed = sum(
+            t["sp"] for t in task_completion_dates 
+            if t["date"] == current_date
+        )
+        sp_completed_per_day[current_date] = sp_completed
+
+    # Generar datos para el chart
+    chart_data = []
+    cumulative_completed = 0
+    ideal_drop_per_day = total_sp / (sprint_days - 1) if sprint_days > 1 else total_sp
+    
+    for day in range(sprint_days):
+        current_date = active_sprint["start_date"] + timedelta(days=day)
+        day_label = f"Day {day+1}"
         
-        for task in tasks_snapshots:
-            data = task.to_dict()
-            sp = data.get("story_points", 0)
-            if isinstance(sp, int):
-                total_sp += sp
-                if data.get("status_khanban", "").strip().lower() == "done":
-                    done_sp += sp
+        # Calcular completado acumulado
+        daily_completed = sp_completed_per_day.get(current_date, 0)
+        cumulative_completed += daily_completed
+        
+        remaining = max(total_sp - cumulative_completed, 0)
+        ideal = max(total_sp - (ideal_drop_per_day * day), 0)
+        
+        chart_data.append({
+            "day": day_label,
+            "date": current_date.isoformat(),
+            "Remaining": remaining,
+            "Ideal": round(ideal, 2),
+            "Completed": daily_completed,
+            "CompletedCumulative": cumulative_completed
+        })
 
-    # Agregar al sprint activo
-    active_sprint["total_story_points"] = total_sp
-    active_sprint["done_story_points"] = done_sp
-    active_sprint["remaining_story_points"] = max(total_sp - done_sp, 0)
-
-    return active_sprint
+    return {
+        "sprint_info": {
+            "name": active_sprint.get("name", f"Sprint {active_sprint['id'][:6]}"),
+            "start_date": active_sprint["start_date"].isoformat(),
+            "end_date": active_sprint["end_date"].isoformat(),
+            "total_story_points": total_sp,
+            "duration_days": sprint_days
+        },
+        "chart_data": chart_data
+    }
 
 
 @router.post("/api/velocitytrend")
