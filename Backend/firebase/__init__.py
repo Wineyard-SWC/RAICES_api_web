@@ -48,3 +48,4 @@ permissions_ref = db.collection("permissions")
 bugs_ref = db.collection("bugs")
 teams_ref = db.collection('teams')
 team_members_ref = db.collection('team_members')
+user_roles_ref = db.collection('user_roles')  # Add this line
