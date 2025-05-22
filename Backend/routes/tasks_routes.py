@@ -4,6 +4,7 @@ from firebase import db, projects_ref, userstories_ref, sprints_ref, tasks_ref
 from firebase_admin import firestore
 from models.task_model import TaskFormData, TaskResponse,StatusUpdate,TaskPartialKhabanResponse
 from datetime import datetime
+from helpers import add_task_to_user_story,remove_task_from_user_story,sync_task_in_sprint
 
 router = APIRouter(tags=["Tasks"])
 
@@ -223,7 +224,7 @@ def get_tasks_by_story(project_id: str, user_story_id: str):
     # valida existencia user story
     story_q = (
         userstories_ref
-        .where("idTitle", "==", user_story_id)
+        .where("id", "==", user_story_id)
         .where("projectRef", "==", project_id)
         .limit(1)
         .stream()
@@ -285,7 +286,7 @@ def get_tasks_by_sprint(project_id: str, sprint_id: str):
     # valida existencia sprint
     sprint_q = (
         sprints_ref
-        .where("idTitle", "==", sprint_id)
+        .where("id", "==", sprint_id)
         .where("projectRef", "==", project_id)
         .limit(1)
         .stream()
@@ -376,6 +377,41 @@ def update_task(project_id: str, task_id: str, t: TaskFormData):
     if not snap.exists or snap.get("project_id") != project_id:
         raise HTTPException(404, "Task not found")
 
+    old_task = snap.to_dict()
+    old_user_story_id = old_task.get("user_story_id") #campo uuid en UserStory model
+    new_user_story_id = t.user_story_id if t.user_story_id is not None else old_user_story_id
+    task_points = old_task.get("story_points", 0)
+    status_khanban = t.status_khanban or old_task.get("status_khanban")
+    sprint_id = old_task.get("sprint_id")
+
+    if new_user_story_id != old_user_story_id:
+        if old_user_story_id:
+            remove_task_from_user_story(
+                project_id,
+                old_user_story_id,
+                task_id,
+                task_points,
+                old_task.get("status_khanban") == "Done"
+            )
+        if new_user_story_id:
+            add_task_to_user_story(
+                project_id,
+                new_user_story_id,
+                task_id,
+                task_points,
+                status_khanban == "Done"
+            )
+
+    if sprint_id:
+        sync_task_in_sprint(
+            project_id,
+            sprint_id,
+            old_user_story_id,
+            new_user_story_id,
+            task_id
+        )
+
+
     data = t.dict(exclude_unset=True, exclude_none=True)
     data["updated_at"] = firestore.SERVER_TIMESTAMP
     ref.update(data)
@@ -407,16 +443,44 @@ def update_task(project_id: str, task_id: str, t: TaskFormData):
     )
 
 
-
 # 8) Eliminar una task
 @router.delete("/projects/{project_id}/tasks/{task_id}")
 def delete_task(project_id: str, task_id: str):
+    
+    #Busca la referencia de la task en la coleccion
     ref = tasks_ref.document(task_id)
     snap = ref.get()
+
+    #Si no existe entonces regresa un 404
     if not snap.exists or snap.get("project_id") != project_id:
         raise HTTPException(404, "Task not found")
+    
+    task_data = snap.to_dict()
+    user_story_id = task_data.get("user_story_id")
+    sprint_id = task_data.get("sprint_id")
+    task_points = task_data.get("story_points")
+
+    if user_story_id:
+        remove_task_from_user_story(
+            project_id,
+            user_story_id,
+            task_id,
+            task_points,
+            task_data.get("status_khanban") == "Done"
+        )
+    if sprint_id:
+        sync_task_in_sprint(
+            project_id,
+            sprint_id,
+            user_story_id,
+            None,  
+            task_id
+        )
+
     ref.delete()
     return {"message": "Task deleted successfully"}
+
+
 
 # 9) Agregar un comentario a una task
 @router.post("/projects/{project_id}/tasks/{task_id}/comments")
