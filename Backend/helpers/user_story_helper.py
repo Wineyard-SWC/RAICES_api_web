@@ -53,33 +53,29 @@ def add_task_to_user_story(project_id: str, user_story_id: str, task_id: str, ta
 
 
 def delete_user_story_and_related(project_id: str, story_id: str):
-    
-    story_query = userstories_ref\
-                  .where("id","==",story_id)\
-                  .where("projectRef","==",project_id)\
-                  .limit(1)\
-                  .stream()
-    
-    story_list = list(story_query)
+    # Obtener el documento por su ID
+    story_doc_ref = userstories_ref.document(story_id)
+    story_doc = story_doc_ref.get()
 
-    if not story_list: raise Exception("User story not found")
+    if not story_doc.exists:
+        raise Exception("User story not found")
 
-    story_doc = story_list[0]
     story_data = story_doc.to_dict()
-    user_story_uuid = story_data.get("uuid") 
-
+    user_story_uuid = story_data.get("uuid")
     task_list = story_data.get("task_list", [])
 
+    # Borrar las tareas relacionadas
     for task_id in task_list: 
         tasks_ref.document(task_id).delete()
 
+    # Borrar bugs relacionados por user_story_uuid
     bugs_query = bugs_ref.where("userStoryRelated", "==", user_story_uuid).where("projectId", "==", project_id).stream()
     for bug in bugs_query:
         bugs_ref.document(bug.id).delete()
-    
+
+    # Quitar user story de todos los sprints
     sprints = sprints_ref.where("project_id", "==", project_id).stream()
     for sprint in sprints:
-        
         sprint_doc = sprint.to_dict()
         us_list = sprint_doc.get("user_stories", [])
 
@@ -87,8 +83,9 @@ def delete_user_story_and_related(project_id: str, story_id: str):
         
         if len(new_us_list) != len(us_list):  
             sprints_ref.document(sprint.id).update({"user_stories": new_us_list})
-    
-    userstories_ref.document(story_doc.id).delete()
+
+    # Borrar el user story
+    story_doc_ref.delete()
 
         
 
