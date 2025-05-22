@@ -116,4 +116,27 @@ async def update_user_roles(document_id: str, roles_update: UserRolesUpdate):
     
     return UserRolesResponse(**updated_data)
 
-
+@router.get("/bitmask/{role_id_or_name}", response_model=int)
+async def get_role_bitmask(role_id_or_name: str):
+    """
+    Get the bitmask value for a specific role by ID or name.
+    Works with both idRole values and display names.
+    """
+    for role in DEFAULT_ROLES:
+        if role["idRole"] == role_id_or_name or role["name"] == role_id_or_name:
+            return role["bitmask"]
+    
+    query = user_roles_ref.get()
+    
+    for doc in query:
+        roles_list = doc.to_dict().get("roles", [])
+        for role in roles_list:
+            # Check both idRole and name fields
+            if (role.get("idRole") == role_id_or_name or 
+                role.get("name") == role_id_or_name):
+                return role.get("bitmask", 0)
+    
+    raise HTTPException(
+        status_code=404,
+        detail=f"Role with ID or name '{role_id_or_name}' not found"
+    )

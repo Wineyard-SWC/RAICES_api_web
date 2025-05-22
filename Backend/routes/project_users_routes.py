@@ -2,8 +2,9 @@ from models.users_model import Users, UsersResponse
 from models.projects_model import Projects, ProjectsResponse
 from models.project_users_model import Project_Users, Project_UsersResponse, Project_UsersRef, ProjectUserFullResponse
 from firebase import project_users_ref, users_ref, projects_ref
-from fastapi import APIRouter, HTTPException
-from typing import List
+from fastapi import APIRouter, HTTPException, Body
+from pydantic import BaseModel
+from typing import List, Optional
 
 router = APIRouter(tags=["ProjectUsers"])
 
@@ -148,3 +149,85 @@ def get_project_user_relation(user_id: str, project_id: str):
         role=data.get("role"),
         joinedAt=data.get("joinedAt"),
     )
+
+# Add this model for the role update
+class RoleUpdate(BaseModel):
+    role: str
+
+# Add this endpoint to the file
+@router.patch("/project_users/{project_user_id}/role", response_model=Project_UsersResponse)
+def update_user_role(project_user_id: str, role_update: RoleUpdate):
+    """
+    Update a user's role in a project.
+    
+    Parameters:
+    - project_user_id: ID of the project-user relation
+    - role_update: Object containing the new role
+    
+    Returns:
+    - Updated project-user relation
+    """
+    # Check if the project-user relation exists
+    project_user_doc = project_users_ref.document(project_user_id).get()
+    if not project_user_doc.exists:
+        raise HTTPException(status_code=404, detail="Project-user relation not found")
+    
+    # Get current data
+    project_user_data = project_user_doc.to_dict()
+    
+    # Update only the role field
+    project_users_ref.document(project_user_id).update({
+        "role": role_update.role
+    })
+    
+    # Get updated document
+    updated_doc = project_users_ref.document(project_user_id).get()
+    updated_data = updated_doc.to_dict()
+    
+    # Construct response
+    return Project_UsersResponse(
+        id=project_user_id,
+        userRef=updated_data["userRef"].id,
+        projectRef=updated_data["projectRef"].id,
+        role=updated_data.get("role"),
+        joinedAt=updated_data.get("joinedAt")
+    )
+
+@router.get("/project_users/user/{user_id}/relations", response_model=List[Project_UsersResponse])
+def get_user_project_relations(user_id: str):
+    """
+    Get all project-user relations for a specific user.
+    
+    Parameters:
+    - user_id: The ID of the user
+    
+    Returns:
+    - List of project-user relations with role info
+    """
+    # Verify user exists
+    user_doc = users_ref.document(user_id).get()
+    if not user_doc.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Find all relations for this user
+    relations = project_users_ref.where("userRef", "==", user_doc.reference).stream()
+    
+    result = []
+    for rel in relations:
+        rel_data = rel.to_dict()
+        
+        # Get project reference
+        project_ref = rel_data["projectRef"]
+        
+        # Build response object
+        result.append(
+            Project_UsersResponse(
+                id=rel.id,
+                userRef=user_id,
+                projectRef=project_ref.id,
+                role=rel_data.get("role"),
+                joinedAt=rel_data.get("joinedAt")
+            )
+        )
+    
+    return result
