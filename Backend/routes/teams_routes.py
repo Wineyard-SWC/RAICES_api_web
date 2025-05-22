@@ -7,7 +7,7 @@ from firebase import db, teams_ref
 from datetime import datetime, timezone
 
 router = APIRouter(
-    tags=["teams"]
+    tags=["Teams"]
 )
 
 async def _calculate_user_metrics(user_id: str, project_id: str) -> dict:

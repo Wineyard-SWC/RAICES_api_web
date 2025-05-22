@@ -8,7 +8,7 @@ from typing import Optional
 from datetime import datetime
 from helpers import delete_user_story_and_related
 
-router = APIRouter(tags=["UserStorie"])
+router = APIRouter(tags=["UserStories"])
 
 @router.post("/projects/{project_id}/userstories/batch", response_model=List[UserStoryResponse])
 def create_userstories_batch(

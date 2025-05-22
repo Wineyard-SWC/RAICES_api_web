@@ -33,7 +33,6 @@ async def get_sprint_comparison(projectId: str):
     - Sprints anteriores completados
     - Métricas de velocidad, completado, cambios de scope
     - Risk assessment
-    - Tasks per day (burnup rate)
     - Quality metrics
     """
     try:
@@ -71,6 +70,7 @@ async def get_sprint_comparison(projectId: str):
         # 4. Procesar cada sprint para la comparación
         comparison_data = []
         tasks_ref = db.collection("tasks")
+        bugs_ref = db.collection("bugs")
         
         for sprint in sprints:
             # Saltar sprints futuros que no son el activo
@@ -82,11 +82,20 @@ async def get_sprint_comparison(projectId: str):
                 t.to_dict() for t in 
                 tasks_ref\
                 .where("sprint_id", "==", sprint["id"])\
-                .select(["story_points", "status_khanban","created_at"])\
+                .select(["story_points", "status_khanban", "created_at"])\
                 .stream()
             ]
 
-        
+            # Obtener bugs del sprint
+            bugs = [
+                b.to_dict() for b in 
+                bugs_ref\
+                .where("sprintId", "==", sprint["id"])\
+                .select(["severity"])\
+                .stream()
+            ]
+            total_bugs = len(bugs)
+
             # Calcular métricas básicas
             total_sp = sum(t.get("story_points", 0) for t in tasks)
             completed_sp = sum(
@@ -103,16 +112,15 @@ async def get_sprint_comparison(projectId: str):
             days_elapsed = (now - sprint["start_date"]).days if sprint["id"] == active_sprint["id"] else (sprint["end_date"] - sprint["start_date"]).days
             days_elapsed = max(1, days_elapsed)  # Evitar división por cero
             
-            # Calcular tasks per day (burnup rate)
-            completed_tasks = sum(1 for t in tasks if t.get("status_khanban") == "Done")
-            tasks_per_day = round(completed_tasks / days_elapsed, 1)
-            
-            # Calcular días estimados restantes (solo para sprint activo)
-            remaining_tasks = sum(1 for t in tasks if t.get("status_khanban") != "Done")
-            estimated_days_remaining = round(remaining_tasks / tasks_per_day) if tasks_per_day > 0 else 0
-            
-            # Determinar risk assessment basado en velocidad
-            risk_assessment = "Low Risk" if (completed_sp / days_elapsed) >= (total_sp / sprint["duration_weeks"] / 7) else "High Risk"
+            # Determinar risk assessment basado en múltiples factores
+            velocity = completed_sp / days_elapsed
+            average_velocity = total_sp / (sprint["duration_weeks"] * 7)
+            risk_assessment = "Low Risk"
+
+            if velocity < average_velocity * 0.8 or scope_changes > 5 or total_bugs > 10:
+                risk_assessment = "Medium Risk"
+            if velocity < average_velocity * 0.5 or scope_changes > 10 or total_bugs > 20:
+                risk_assessment = "High Risk"
 
             sprint_data = {
                 "sprint_id": sprint["id"],
@@ -124,16 +132,10 @@ async def get_sprint_comparison(projectId: str):
                     (completed_sp / total_sp * 100) if total_sp > 0 else 0
                 ),
                 "scope_changes": scope_changes,
-                "bugs_found": 0,  # TODO: Implementar conteo de bugs
-                
-                # Nuevos campos
+                "bugs_found": total_bugs,
                 "risk_assessment": risk_assessment,
-                "tasks_per_day": tasks_per_day,
-                "estimated_days_remaining": estimated_days_remaining if sprint["id"] == active_sprint["id"] else None,
-                "quality_metrics": {
-                    "bugs_found": 0,
-                    "priority_distribution": "All P2 priority"  # Esto podría calcularse si tienes los datos
-                }
+                "velocity": velocity,
+                "average_velocity": average_velocity
             }
 
             comparison_data.append(sprint_data)
