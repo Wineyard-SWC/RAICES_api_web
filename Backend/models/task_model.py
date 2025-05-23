@@ -24,11 +24,11 @@ class GraphicsRequest(BaseModel):
 
 
 class TaskFormData(BaseModel):
-    id:Optional[str] = None
+    id:Optional[str] = None 
     title: Optional[str] = None
     description: Optional[str]= None
     user_story_id: Optional[str]= None
-    assignee: List[Tuple[str, str]]= None
+    assignee: Optional[List[Tuple[str, str]]] = None
     sprint_id: Optional[str] = None
     status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"] = None 
     priority: Optional[Literal["High","Medium","Low"]] = None
@@ -42,6 +42,7 @@ class TaskFormData(BaseModel):
     date_modified: Optional[str] = None
     date_completed: Optional[str] = None
 
+
 class TaskResponse(TaskFormData):
     id: str
     user_story_title: Optional[str]
@@ -50,6 +51,21 @@ class TaskResponse(TaskFormData):
     created_at: str
     updated_at: str
     comments: List[Comment]
+
+    @validator('assignee_id', pre=True)
+    def normalize_assignee_id(cls, v):
+        if v is None:
+            return []
+        normalized = []
+        for item in v:
+            if isinstance(item, dict):
+                normalized.append((item.get('id', ''), item.get('name', '')))
+            elif isinstance(item, (list, tuple)) and len(item) == 2:
+                normalized.append((item[0], item[1]))
+            else:
+                raise ValueError(f"Invalid assignee_id item: {item!r}")
+        return normalized
+    
 
     @validator('created_at', 'updated_at', pre=True)
     def convert_timestamp(cls, v):
@@ -69,3 +85,18 @@ class TaskPartialKhabanResponse(BaseModel):
     sprint_name: Optional[str]
     created_at: str
     updated_at: str
+
+    @validator('assignee_id', pre=True)
+    def normalize_assignee_id(cls, v):
+        if v is None:
+            return []
+        normalized = []
+        for item in v:
+            if isinstance(item, dict):
+                normalized.append((item.get('id', ''), item.get('name', '')))
+            elif isinstance(item, (list, tuple)) and len(item) == 2:
+                normalized.append((item[0], item[1]))
+            else:
+                raise ValueError(f"Invalid assignee_id item: {item!r}")
+        return normalized
+    
