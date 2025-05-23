@@ -10,6 +10,10 @@ db = firestore.client()
 def to_date(date_time):
     return date_time.date() if date_time else None
 
+def get_value(obj, key, default=None):
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
 
 def parse_firestore_date(date_value):
     if isinstance(date_value, str):
@@ -190,7 +194,8 @@ async def get_burndown_data(payload: GraphicsRequest):
         tasks = [t.to_dict() for t in tasks_query.stream()]
 
     # Procesar datos para el burndown
-    total_sp = sum(t.get("story_points", 0) for t in tasks)
+    total_sp = sum(get_value(t, "story_points", 0) for t in tasks)
+
     sprint_days = (active_sprint["end_date"] - active_sprint["start_date"]).days + 1
     
     # Calcular progreso diario
@@ -200,12 +205,14 @@ async def get_burndown_data(payload: GraphicsRequest):
     # Obtener fechas de completado de tareas
     task_completion_dates = []
     for task in tasks:
-        if task.get("status_khanban", "").lower() == "done":
-            completed_at = parse_firestore_date(task.get("completed_at") or task.get("updated_at"))
+        if get_value(task, "status_khanban", "").lower() == "done":
+            completed_at = parse_firestore_date(
+                get_value(task, "completed_at") or get_value(task, "updated_at")
+            )
             if completed_at:
                 task_completion_dates.append({
                     "date": completed_at.date(),
-                    "sp": task.get("story_points", 0)
+                    "sp": get_value(task, "story_points", 0)
                 })
 
     # Calcular SP completados por día
