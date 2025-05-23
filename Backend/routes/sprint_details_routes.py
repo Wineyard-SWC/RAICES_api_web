@@ -267,24 +267,51 @@ async def get_velocity_trend(payload: GraphicsRequest):
     projectId = payload.projectId
     tasks_from_payload = payload.tasks or []
 
-    now = datetime.now().date()
-
-    # Obtener todos los sprints del proyecto
+    now = datetime.now(timezone.utc)
+    
+    # 1. Obtener todos los sprints del proyecto y parsear fechas
     sprints_snapshots = db.collection("sprints").where("project_id", "==", projectId).stream()
     sprints_data = []
-    sprint_ids = []
-
+    
     for snap in sprints_snapshots:
         data = snap.to_dict()
-        sprint_ids.append(snap.id)
-        sprints_data.append((snap.id, data))
+        data["id"] = snap.id
+        
+        # Parsear fechas
+        data["start_date"] = parse_firestore_date(data.get("start_date"))
+        data["end_date"] = parse_firestore_date(data.get("end_date"))
+        
+        if not data["start_date"] or not data["end_date"]:
+            continue
+            
+        sprints_data.append(data)
 
     if not sprints_data:
         return {"error": "No sprints found for this project"}
 
-    # Diccionario para guardar story points por sprint
-    velocity = {sid: {"Planned": 0, "Actual": 0, "sprint": s.get("name") or f"Sprint {s.get('number', sid[:6])}"} for sid, s in sprints_data}
+    # 2. Filtrar sprints: solo pasados y el actual (excluir futuros)
+    filtered_sprints = []
+    for sprint in sprints_data:
+        # Incluir sprint si ya terminó o está en progreso
+        if sprint["end_date"] <= now or (sprint["start_date"] <= now <= sprint["end_date"]):
+            filtered_sprints.append(sprint)
 
+    # 3. Ordenar sprints por fecha de inicio
+    filtered_sprints.sort(key=lambda x: x["start_date"])
+
+    # 4. Preparar estructura para velocity
+    velocity = {
+        sprint["id"]: {
+            "Planned": 0,
+            "Actual": 0,
+            "sprint": sprint.get("name") or f"Sprint {sprint.get('number', sprint['id'][:6])}",
+            "start_date": sprint["start_date"].isoformat(),
+            "end_date": sprint["end_date"].isoformat()
+        }
+        for sprint in filtered_sprints
+    }
+
+    # 5. Procesar tareas
     if tasks_from_payload:
         # Procesar las tareas recibidas desde el frontend
         for task in tasks_from_payload:
@@ -307,4 +334,8 @@ async def get_velocity_trend(payload: GraphicsRequest):
                     if data.get("status_khanban", "").strip().lower() == "done":
                         velocity[sprint_id]["Actual"] += sp
 
-    return list(velocity.values())
+    # Convertir a lista ordenada por fecha
+    velocity_list = list(velocity.values())
+    velocity_list.sort(key=lambda x: x["start_date"])
+
+    return velocity_list
