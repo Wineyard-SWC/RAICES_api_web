@@ -207,7 +207,7 @@ async def get_burndown_data(payload: GraphicsRequest):
     for task in tasks:
         if get_value(task, "status_khanban", "").lower() == "done":
             completed_at = parse_firestore_date(
-                get_value(task, "completed_at") or get_value(task, "updated_at")
+                get_value(task, "date_completed") or get_value(task, "date_modified")
             )
             if completed_at:
                 task_completion_dates.append({
