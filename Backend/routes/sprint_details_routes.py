@@ -263,63 +263,48 @@ async def get_burndown_data(payload: GraphicsRequest):
 
 
 @router.post("/api/velocitytrend")
-async def get_velocity_trend(payload:GraphicsRequest):
-    projectId=payload.projectId
-    tasks=payload.tasks or []
+async def get_velocity_trend(payload: GraphicsRequest):
+    projectId = payload.projectId
+    tasks_from_payload = payload.tasks or []
 
     now = datetime.now().date()
 
     # Obtener todos los sprints del proyecto
     sprints_snapshots = db.collection("sprints").where("project_id", "==", projectId).stream()
     sprints_data = []
-    active_sprint = None
+    sprint_ids = []
 
     for snap in sprints_snapshots:
         data = snap.to_dict()
-        start = to_date(data.get("start_date"))
-        end = to_date(data.get("end_date"))
-
+        sprint_ids.append(snap.id)
         sprints_data.append((snap.id, data))
 
-        if start and end and start <= now <= end:
-            active_sprint = data
+    if not sprints_data:
+        return {"error": "No sprints found for this project"}
 
-    if not active_sprint:
-        return {"error": "No active sprint found for this project"}
+    # Diccionario para guardar story points por sprint
+    velocity = {sid: {"Planned": 0, "Actual": 0, "sprint": s.get("name") or f"Sprint {s.get('number', sid[:6])}"} for sid, s in sprints_data}
 
-    num_sprints = len(sprints_data)
-
-    total_sp = 0
-    done_sp = 0
-
-    if tasks:
-        # Process tasks passed from frontend
-        for task in tasks:
-            sp = task.story_points or 0
-            total_sp += sp
-            if task.status_khanban and task.status_khanban.strip().lower() == "done":
-                done_sp += sp
+    if tasks_from_payload:
+        # Procesar las tareas recibidas desde el frontend
+        for task in tasks_from_payload:
+            sprint_id = task.sprint_id
+            if sprint_id in velocity:
+                sp = task.story_points or 0
+                velocity[sprint_id]["Planned"] += sp
+                if task.status_khanban and task.status_khanban.strip().lower() == "done":
+                    velocity[sprint_id]["Actual"] += sp
     else:
-        # Fetch tasks from Firestore if not provided
-        tasks_snapshots = db.collection("tasks")\
-            .where("project_id", "==", projectId)\
-            .select(["story_points", "status_khanban"])\
-            .get()
-        
-        for task in tasks_snapshots:
-            data = task.to_dict()
-            sp = data.get("story_points", 0)
-            if isinstance(sp, int):
-                total_sp += sp
-                if data.get("status_khanban", "").strip().lower() == "done":
-                    done_sp += sp
+        # Obtener tareas desde Firestore si no se proporcionaron
+        tasks_snapshots = db.collection("tasks").where("project_id", "==", projectId).stream()
+        for snap in tasks_snapshots:
+            data = snap.to_dict()
+            sprint_id = data.get("sprint_id")
+            if sprint_id in velocity:
+                sp = data.get("story_points", 0)
+                if isinstance(sp, int):
+                    velocity[sprint_id]["Planned"] += sp
+                    if data.get("status_khanban", "").strip().lower() == "done":
+                        velocity[sprint_id]["Actual"] += sp
 
-    planned = round(total_sp / num_sprints, 2) if num_sprints else 0
-
-    return [
-        {
-            "sprint": s.get("name") or f"Sprint {s.get('number', sid[:6])}",
-            "Planned": planned,
-            "Actual": done_sp
-        } for sid, s in sprints_data
-    ]
+    return list(velocity.values())
