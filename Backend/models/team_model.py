@@ -13,9 +13,10 @@ class TeamBase(BaseModel):
     name: str
     description: str
     projectId: str
+    isInitial: Optional[bool] = False  # Campo opcional para identificar el equipo inicial
 
 class TeamCreate(TeamBase):
-    members: List[str]  # List of user IDs
+    members: List[str]  # Lista de IDs de usuarios
 
 class TeamResponse(TeamBase):
     id: str

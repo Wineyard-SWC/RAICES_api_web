@@ -98,7 +98,8 @@ async def create_team(project_id: str, team: TeamCreate):
         "projectId": project_id,
         "members": members,
         "createdAt": now,
-        "updatedAt": now
+        "updatedAt": now,
+        "isInitial": getattr(team, "isInitial", False)
     }
 
     team_ref = teams_ref.document()
