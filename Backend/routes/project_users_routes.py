@@ -231,3 +231,30 @@ def get_user_project_relations(user_id: str):
         )
     
     return result
+
+@router.delete("/project_users/project/{project_id}")
+def delete_project_users_by_project(project_id: str):
+    """
+    Elimina todas las relaciones de project_users asociadas a un proyecto específico.
+    """
+    try:
+        # Verificar que el proyecto exista
+        project_doc = projects_ref.document(project_id).get()
+        if not project_doc.exists:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Buscar todas las relaciones de project_users asociadas al proyecto
+        project_users_query = project_users_ref.where("projectRef", "==", project_doc.reference).stream()
+        project_users_docs = list(project_users_query)
+
+        if not project_users_docs:
+            return {"message": "No project-user relations found for the specified project."}
+
+        # Eliminar cada relación encontrada
+        for doc in project_users_docs:
+            project_users_ref.document(doc.id).delete()
+
+        return {"message": f"{len(project_users_docs)} project-user relations deleted successfully."}
+
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Error deleting project-user relations: {err}")
