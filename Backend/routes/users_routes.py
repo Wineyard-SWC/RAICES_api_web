@@ -34,13 +34,13 @@ def create_user(user: Users):
 
 # Actualizar un usuario
 @router.put("/users/{user_id}", response_model=UsersResponse)
-def update_user(uid: str, user: Users):
-    user_doc = users_ref.document(uid)
+def update_user(user_id: str, user: Users):
+    user_doc = users_ref.document(user_id)
     if not user_doc.get().exists:
         raise HTTPException(status_code=404, detail="User not found")
     
     user_doc.update(user.dict())
-    return UsersResponse(id=uid, **user.dict())
+    return UsersResponse(id=user_id, **user.dict())
 
 # Eliminar un usuario y sus referencias en project_users
 @router.delete("/users/{user_id}")
