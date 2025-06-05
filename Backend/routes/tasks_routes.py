@@ -524,3 +524,21 @@ def update_task_status(project_id: str, task_id: str, payload: StatusUpdate):
     })
 
     return {"message": f"Task {task_id} status updated to {payload.status_khanban}"}
+
+@router.get("/user/{user_id}/story_points")
+def get_user_story_points(user_id: str):
+    docs = (
+        tasks_ref
+        .where("status_khanban", "==", "Done")
+        .stream()
+    )
+
+    total = 0
+    for doc in docs:
+        task = doc.to_dict()
+        for user in task.get("assignee", []):
+            if isinstance(user, dict) and user.get("id") == user_id:
+                total += task.get("story_points", 0)
+                break
+
+    return {"user_id": user_id, "story_points": total}
