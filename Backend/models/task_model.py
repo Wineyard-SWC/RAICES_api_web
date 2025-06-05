@@ -17,6 +17,7 @@ class Comment(BaseModel):
 class TaskBurndownChart(BaseModel):
     story_points: int=None
     status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"]=None
+    status_id: Optional[str] = None
     
 class GraphicsRequest(BaseModel):
     projectId: str

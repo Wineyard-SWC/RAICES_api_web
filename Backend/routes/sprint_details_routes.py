@@ -17,7 +17,11 @@ def get_value(obj, key, default=None):
 
 def parse_firestore_date(date_value):
     if isinstance(date_value, str):
-        dt = datetime.fromisoformat(date_value)
+        try:
+            date_value = date_value.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(date_value)
+        except Exception:
+            return None
     elif isinstance(date_value, datetime):
         dt = date_value
     elif hasattr(date_value, "timestamp"):
