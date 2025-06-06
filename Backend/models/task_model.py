@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional, Literal, Tuple
+from typing import List, Optional, Literal, Tuple, Union
 from pydantic import validator
 from datetime import datetime
 
@@ -18,18 +18,25 @@ class TaskBurndownChart(BaseModel):
     story_points: int=None
     status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"]=None
     status_id: Optional[str] = None
+    sprint_id: Optional[str] = None
     
 class GraphicsRequest(BaseModel):
     projectId: str
     tasks: Optional[List[TaskBurndownChart]] = []
 
+class AssigneeData(BaseModel):
+    id: str
+    name: str
+
+class Workingusers(BaseModel):
+    users: Tuple[str, str]
 
 class TaskFormData(BaseModel):
     id:Optional[str] = None 
     title: Optional[str] = None
     description: Optional[str]= None
     user_story_id: Optional[str]= None
-    assignee: Optional[List[Tuple[str, str]]] = None
+    assignee: Optional[List[Union[AssigneeData,Workingusers,Tuple[str, str]]]] = None
     sprint_id: Optional[str] = None
     status_khanban: Literal["Backlog","To Do","In Progress","In Review","Done"] = None 
     priority: Optional[Literal["High","Medium","Low"]] = None

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Literal, Tuple
+from typing import Optional, List, Literal, Tuple,Union
 from datetime import datetime
 
 class Workingusers(BaseModel):
@@ -15,6 +15,10 @@ class Comments(BaseModel):
     text: str
     timestamp: str
 
+class AssigneeData(BaseModel):
+    id: str
+    name: str
+
 class BugBase(BaseModel):
     title:  Optional[str]=None
     description:  Optional[str]=None
@@ -28,7 +32,7 @@ class BugBase(BaseModel):
     userStoryRelated: Optional[str]=None
     sprintId: Optional[str]=None
     reportedBy:  Optional[Workingusers]=None
-    assignees:  Optional[List[Workingusers]]=None
+    assignee:  Optional[List[Union[AssigneeData,Workingusers]]]=None
     createdAt:  Optional[str]=None
     modifiedAt:  Optional[str]=None
     triageDate: Optional[str]=None

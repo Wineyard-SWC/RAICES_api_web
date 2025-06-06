@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from enum import Enum
-from typing import List, Optional, Literal, Tuple
+from typing import List, Optional, Literal, Tuple,Union
 
 class PriorityEnum(str, Enum):
     high = 'High'
@@ -28,6 +28,10 @@ class Comment(BaseModel):
     text: str
     timestamp: str
 
+class AssigneeData(BaseModel):
+    id: str
+    name: str
+
 class Workingusers(BaseModel):
     users: Tuple[str, str]
 
@@ -51,7 +55,7 @@ class UserStory(BaseModel):
     total_acceptanceCriteria: Optional[int]= None
     date_completed: Optional[str]= None
     deadline: Optional[str]= None
-    assignee: Optional[List[Workingusers]]= None
+    assignee: Optional[List[Union[AssigneeData,Workingusers]]]= None
 
 class UserStoryResponse(UserStory):
     id: str  # ID de Firestore (se mantiene por compatibilidad)

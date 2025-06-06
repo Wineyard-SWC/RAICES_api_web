@@ -56,7 +56,6 @@ class Roadmap(BaseModel):
     isDuplicate: bool = False
     isModified: bool = True
     
-    # Metadatos
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
     projectId: str = Field(..., min_length=1)
@@ -78,7 +77,6 @@ class RoadmapResponse(BaseModel):
     isDuplicate: bool = False
     isModified: bool = True
     
-    # Metadatos
     createdAt: str
     updatedAt: str
     projectId: str

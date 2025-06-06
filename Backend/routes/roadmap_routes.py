@@ -63,7 +63,6 @@ async def get_roadmaps_from_project(project_id: str):
             # Resolver phases (incluyendo lógica de copias)
             phases = resolve_roadmap_phases(roadmap_data)
             
-            # Calcular estadísticas
             phase_count, total_items = calculate_roadmap_stats(phases)
             
             # Crear objeto de respuesta
@@ -303,10 +302,8 @@ async def get_roadmap_by_id_endpoint(roadmap_id: str):
                 detail="Roadmap not found"
             )
         
-        # Resolver phases
         phases = resolve_roadmap_phases(roadmap_data)
         
-        # Calcular estadísticas
         phase_count, total_items = calculate_roadmap_stats(phases)
         
         return RoadmapResponse(
