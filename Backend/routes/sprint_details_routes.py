@@ -124,7 +124,10 @@ async def get_sprint_comparison(projectId: str):
             # Calcular días transcurridos en el sprint
             days_elapsed = (now - sprint["start_date"]).days if sprint["id"] == active_sprint["id"] else (sprint["end_date"] - sprint["start_date"]).days
             days_elapsed = max(1, days_elapsed)  # Evitar división por cero
-            
+
+            days_left = (sprint["end_date"] - now).days if sprint["id"] == active_sprint["id"] else 0
+            days_left = max(0, days_left)  # No permitir días negativos
+
             # Determinar risk assessment basado en múltiples factores
             velocity = completed_sp / days_elapsed
             average_velocity = total_sp / (sprint["duration_weeks"] * 7)
@@ -148,7 +151,10 @@ async def get_sprint_comparison(projectId: str):
                 "bugs_found": total_bugs,
                 "risk_assessment": risk_assessment,
                 "velocity": velocity,
-                "average_velocity": average_velocity
+                "average_velocity": average_velocity,
+                "days_left": days_left,
+                "start_date": sprint["start_date"].isoformat(),
+                "end_date": sprint["end_date"].isoformat()
             }
 
             comparison_data.append(sprint_data)
