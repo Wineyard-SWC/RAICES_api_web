@@ -19,8 +19,8 @@ def safe_iso(dt):
 
 def convert_assignee_format(data: Dict[str, Any]) -> List[Tuple[str, str]]:
     assigned_users = []
-    if "assignees" in data and data["assignees"]:
-        for user in data["assignees"]:
+    if "assignee" in data and data["assignee"]:
+        for user in data["assignee"]:
             if isinstance(user, dict) and "users" in user:
                 uid, uname = user["users"]
                 assigned_users.append((uid, uname))
@@ -39,7 +39,7 @@ def get_bugs_by_project(project_id: str):
     for d in docs:
         raw = d.to_dict() or {}
         
-        for key in ["id", "createdAt", "modifiedAt", "assignees"]:
+        for key in ["id", "createdAt", "modifiedAt", "assignee"]:
             raw.pop(key, None)
 
         assigned = convert_assignee_format(d.to_dict())
@@ -67,7 +67,7 @@ def get_bug(bug_id: str):
     raw.pop("id", None)
     raw.pop("createdAt", None)
     raw.pop("modifiedAt", None)
-    raw.pop("assignees", None)
+    raw.pop("assignee", None)
 
     return Bug(
         id=doc.id,
@@ -112,7 +112,7 @@ def update_bug(bug_id: str, bug: BugBase):
     updated = ref.get().to_dict() or {}
     assigned = convert_assignee_format(updated)
     
-    for key in ["id", "modifiedAt", "createdAt", "assignees"]:
+    for key in ["id", "modifiedAt", "createdAt", "assignee"]:
         updated.pop(key, None)
 
     return Bug(
